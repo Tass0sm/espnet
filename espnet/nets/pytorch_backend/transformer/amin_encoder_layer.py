@@ -11,9 +11,16 @@ from torch import nn
 
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 
+from espnet.nets.pytorch_backend.transformer.axial_attention import (
+    AxialAttentionWithoutPosition,
+    AxialAttentionWithPosition,
+    AxialAttentionWithPositionAndGate
+)
+
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
 
 ###############################################################################
 #                            AXIAL ATTENTION BLOCKS                           #

@@ -114,7 +114,7 @@ class AminTransformerEncoder(AbsEncoder):
                 torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
                 pos_enc_class(output_size, positional_dropout_rate),
             )
-        elif input_layer is None:
+        elif input_layer is None or input_layer.lower() == "none":
             if input_size == output_size:
                 self.embed = None
             else:
@@ -170,7 +170,7 @@ class AminTransformerEncoder(AbsEncoder):
 
         self.encoders = repeat(
             num_blocks,
-            lambda lnum: axial_attention_block_type(lnum, *encoder_layer_args),
+            lambda lnum: encoder_layer(lnum, *encoder_layer_args),
         )
 
         if self.normalize_before:

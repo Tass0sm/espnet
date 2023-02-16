@@ -21,4 +21,4 @@ source path.sh
 # /usr/bin/time ./run.sh --ngpu 4 --skip_data_prep true --skip_train false
 # stage 6 is calculating stats for the language model training text
 # --stage 6 to include lm stats
-/usr/bin/time ./run.sh --ngpu 4 --stage 7 --skip_eval true
+/usr/bin/time ./run.sh --ngpu 0 --stage 11 --skip_eval true

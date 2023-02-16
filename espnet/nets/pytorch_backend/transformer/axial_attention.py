@@ -12,6 +12,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class qkv_transform(nn.Conv1d):
+    """Conv1d for qkv_transform"""
+
 ###############################################################################
 #                               AXIAL ATTENTION                               #
 ###############################################################################
