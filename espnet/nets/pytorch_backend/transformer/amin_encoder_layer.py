@@ -11,6 +11,156 @@ from torch import nn
 
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 
+def conv1x1(in_planes, out_planes, stride=1):
+    """1x1 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+###############################################################################
+#                            AXIAL ATTENTION BLOCKS                           #
+###############################################################################
+
+class AxialWithoutPositionBlock(nn.Module):
+    expansion = 2
+
+    def __init__(self, position_in_encoder, inplanes, planes, stride=1, down_sample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None, kernel_size=56):
+        super(AxialWithoutPositionBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        width = int(planes * (base_width / 64.))
+
+        if position_in_encoder == 0:
+            inplanes = 1
+
+        self.conv_down = conv1x1(inplanes, width)
+        self.conv1 = nn.Conv2d(width, width, kernel_size=1)
+        self.bn1 = norm_layer(width)
+        self.hight_block = AxialAttentionWithoutPosition(width, width, groups=groups, kernel_size=kernel_size)
+        self.width_block = AxialAttentionWithoutPosition(width, width, groups=groups, kernel_size=kernel_size,
+                                                         stride=stride, width=True)
+        self.conv_up = conv1x1(width, planes * self.expansion)
+        self.bn2 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=True)
+        self.down_sample = down_sample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        # pdb.set_trace()
+
+        out = self.conv_down(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        # print(out.shape)
+        out = self.hight_block(out)
+        out = self.width_block(out)
+
+        out = self.relu(out)
+
+        out = self.conv_up(out)
+        out = self.bn2(out)
+
+        if self.down_sample is not None:
+            identity = self.down_sample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+
+class AxialPositionBlock(nn.Module):
+    expansion = 2
+
+    def __init__(self, position_in_encoder, inplanes, planes, stride=1, down_sample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None, kernel_size=56):
+        super(AxialPositionBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        if position_in_encoder == 0:
+            inplanes = 1
+
+        width = int(planes * (base_width / 64.))
+        self.conv_down = conv1x1(inplanes, width)
+        self.bn1 = norm_layer(width)
+        self.hight_block = AxialAttentionWithPosition(width, width, groups=groups, kernel_size=kernel_size)
+        self.width_block = AxialAttentionWithPosition(width, width, groups=groups, kernel_size=kernel_size,
+                                                      stride=stride, width=True)
+        self.conv_up = conv1x1(width, planes * self.expansion)
+        self.bn2 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=True)
+        self.down_sample = down_sample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv_down(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.hight_block(out)
+        out = self.width_block(out)
+        out = self.relu(out)
+
+        out = self.conv_up(out)
+        out = self.bn2(out)
+
+        if self.down_sample is not None:
+            identity = self.down_sample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+
+class AxialPositionGateBlock(nn.Module):
+    expansion = 2
+
+    def __init__(self, position_in_encoder, inplanes, planes, stride=1, down_sample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None, kernel_size=56):
+        super(AxialPositionGateBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        if position_in_encoder == 0:
+            inplanes = 1
+
+        width = int(planes * (base_width / 64.))
+        self.conv_down = conv1x1(inplanes, width)
+        self.bn1 = norm_layer(width)
+        self.hight_block = AxialAttentionWithPositionAndGate(width, width, groups=groups, kernel_size=kernel_size)
+        self.width_block = AxialAttentionWithPositionAndGate(width, width, groups=groups, kernel_size=kernel_size,
+                                                             stride=stride, width=True)
+        self.conv_up = conv1x1(width, planes * self.expansion)
+        self.bn2 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=True)
+        self.down_sample = down_sample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv_down(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.hight_block(out)
+        out = self.width_block(out)
+        out = self.relu(out)
+
+        out = self.conv_up(out)
+        out = self.bn2(out)
+
+        if self.down_sample is not None:
+            identity = self.down_sample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
 
 class AminEncoderLayer(nn.Module):
     """Encoder layer module.

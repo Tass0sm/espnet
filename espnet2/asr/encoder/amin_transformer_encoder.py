@@ -33,6 +33,11 @@ from espnet.nets.pytorch_backend.transformer.subsampling import (
     check_short_utt,
 )
 
+from espnet.nets.pytorch_backend.transformer.amin_encoder_layer import (
+    AxialWithoutPositionBlock,
+    AxialPositionBlock,
+    AxialPositionGateBlock
+)
 
 class AminTransformerEncoder(AbsEncoder):
     """Transformer encoder module.
@@ -78,6 +83,7 @@ class AminTransformerEncoder(AbsEncoder):
         padding_idx: int = -1,
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
+        axial_attention_block_type: str = "without_position"
     ):
         assert check_argument_types()
         super().__init__()
@@ -144,18 +150,27 @@ class AminTransformerEncoder(AbsEncoder):
         else:
             raise NotImplementedError("Support only linear or conv1d.")
 
+
+        inplanes =      8
+        planes = 	8
+
+        encoder_layer_args = (
+            inplanes,
+            planes
+        )
+
+        if axial_attention_block_type == "without_position":
+            encoder_layer = AxialWithoutPositionBlock
+        elif axial_attention_block_type == "with_position":
+            encoder_layer = AxialPositionBlock
+        elif axial_attention_block_type == "with_gate":
+            encoder_layer = AxialPositionGateBlock
+        else:
+            raise NotImplementedError("Support only with_position, with_gate, or without_position.")
+
         self.encoders = repeat(
             num_blocks,
-            lambda lnum: AminEncoderLayer(
-                output_size,
-                MultiHeadedAttention(
-                    attention_heads, output_size, attention_dropout_rate
-                ),
-                positionwise_layer(*positionwise_layer_args),
-                dropout_rate,
-                normalize_before,
-                concat_after,
-            ),
+            lambda lnum: axial_attention_block_type(lnum, *encoder_layer_args),
         )
 
         if self.normalize_before:
