@@ -40,6 +40,7 @@ from espnet2.asr.encoder.hubert_encoder import (
 )
 from espnet2.asr.encoder.longformer_encoder import LongformerEncoder
 from espnet2.asr.encoder.rnn_encoder import RNNEncoder
+from espnet2.asr.encoder.amin_transformer_encoder import AminTransformerEncoder
 from espnet2.asr.encoder.transformer_encoder import TransformerEncoder
 from espnet2.asr.encoder.transformer_encoder_multispkr import (
     TransformerEncoder as TransformerEncoderMultiSpkr,
@@ -141,6 +142,7 @@ encoder_choices = ClassChoices(
     classes=dict(
         conformer=ConformerEncoder,
         transformer=TransformerEncoder,
+        amin_transformer=AminTransformerEncoder,
         transformer_multispkr=TransformerEncoderMultiSpkr,
         contextual_block_transformer=ContextualBlockTransformerEncoder,
         contextual_block_conformer=ContextualBlockConformerEncoder,

@@ -13,7 +13,7 @@ from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
 from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
-from espnet.nets.pytorch_backend.transformer.encoder_layer import EncoderLayer
+from espnet.nets.pytorch_backend.transformer.amin_encoder_layer import AminEncoderLayer
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 from espnet.nets.pytorch_backend.transformer.multi_layer_conv import (
     Conv1dLinear,
@@ -34,7 +34,7 @@ from espnet.nets.pytorch_backend.transformer.subsampling import (
 )
 
 
-class TransformerEncoder(AbsEncoder):
+class AminTransformerEncoder(AbsEncoder):
     """Transformer encoder module.
 
     Args:
@@ -113,7 +113,9 @@ class TransformerEncoder(AbsEncoder):
                 self.embed = torch.nn.Linear(input_size, output_size)
         else:
             raise ValueError("unknown input_layer: " + input_layer)
+
         self.normalize_before = normalize_before
+
         if positionwise_layer_type == "linear":
             positionwise_layer = PositionwiseFeedForward
             positionwise_layer_args = (
@@ -139,9 +141,10 @@ class TransformerEncoder(AbsEncoder):
             )
         else:
             raise NotImplementedError("Support only linear or conv1d.")
+
         self.encoders = repeat(
             num_blocks,
-            lambda lnum: EncoderLayer(
+            lambda lnum: AminEncoderLayer(
                 output_size,
                 MultiHeadedAttention(
                     attention_heads, output_size, attention_dropout_rate
@@ -152,6 +155,7 @@ class TransformerEncoder(AbsEncoder):
                 concat_after,
             ),
         )
+
         if self.normalize_before:
             self.after_norm = LayerNorm(output_size)
 
