@@ -51,7 +51,7 @@ class AxialWithoutPositionBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x, mask):
         identity = x
 
         # pdb.set_trace()
@@ -101,7 +101,7 @@ class AxialPositionBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x, mask):
         identity = x
 
         out = self.conv_down(x)
@@ -147,7 +147,7 @@ class AxialPositionGateBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x, mask):
         identity = x
 
         out = self.conv_down(x)
