@@ -83,6 +83,8 @@ class AminTransformerEncoder(AbsEncoder):
         super().__init__()
         self._output_size = output_size
 
+        print("HELLO FROM AMIN TRANSFORMER ENCODER")
+
         if input_layer == "linear":
             self.embed = torch.nn.Sequential(
                 torch.nn.Linear(input_size, output_size),
