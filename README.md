@@ -1,5 +1,16 @@
 <div align="left"><img src="doc/image/espnet_logo1.png" width="550"/></div>
 
+# HOW TO GET STARTED:
+
+1. cd espnet/tools
+2. ./setup_anaconda.sh {CONDA_TOOLS_DIR} espnet-env 3.8
+3. make
+4. cd ../egs2/librispeech/asr1
+5. sbatch download...
+6. sbatch data_prep
+7. sbatch train_job.sh
+8. sbatch eval_job.sh
+
 # ESPnet: end-to-end speech processing toolkit
 
 |system/pytorch ver.|1.4.0|1.5.1|1.6.0|1.7.1|1.8.1|1.9.1|1.10.2|1.11.0|1.12.1|1.13.1|

@@ -223,6 +223,8 @@ class TransformerEncoder(AbsEncoder):
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
 
+        print("XS_PAD", xs_pad.shape)
+
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
 

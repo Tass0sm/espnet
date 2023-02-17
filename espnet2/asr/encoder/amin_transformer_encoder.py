@@ -6,6 +6,7 @@
 from typing import List, Optional, Tuple
 
 import torch
+import torch.nn as nn
 from typeguard import check_argument_types
 
 from espnet2.asr.ctc import CTC
@@ -153,8 +154,8 @@ class AminTransformerEncoder(AbsEncoder):
             raise NotImplementedError("Support only linear or conv1d.")
 
 
-        inplanes =      8
-        planes = 	8
+        inplanes =      2
+        planes = 	2
 
         encoder_layer_args = (
             inplanes,
@@ -184,6 +185,9 @@ class AminTransformerEncoder(AbsEncoder):
         self.interctc_use_conditioning = interctc_use_conditioning
         self.conditioning_layer = None
 
+        self.flatten_conv = torch.nn.Conv2d(planes, 1, kernel_size=1) # , stride=(5, 1)
+        self.expand_fc = torch.nn.Linear(input_size, output_size)
+
     def output_size(self) -> int:
         return self._output_size
 
@@ -201,7 +205,7 @@ class AminTransformerEncoder(AbsEncoder):
             ilens: input length (B)
             prev_states: Not to be used now.
         Returns:
-            position embedded tensor and mask
+            POSITION embedded tensor and mask
         """
         masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
@@ -227,14 +231,9 @@ class AminTransformerEncoder(AbsEncoder):
             xs_pad = self.embed(xs_pad)
 
         xs_pad = xs_pad.unsqueeze(1)
-        masks = masks.unsqueeze(1)
-
-        # print("XS_PAD SHAPE:", xs_pad.shape)
-        # print("MASKS SHAPE:", masks.shape)
 
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
-            # print("HELLO?", xs_pad, masks)
             xs_pad, masks = self.encoders(xs_pad, masks)
         else:
             for layer_idx, encoder_layer in enumerate(self.encoders):
@@ -253,10 +252,16 @@ class AminTransformerEncoder(AbsEncoder):
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
 
+        xs_pad = self.flatten_conv(xs_pad)
+        xs_pad = self.expand_fc(xs_pad)
+        xs_pad = xs_pad.squeeze(1)
+
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
 
         olens = masks.squeeze(1).sum(1)
+
         if len(intermediate_outs) > 0:
             return (xs_pad, intermediate_outs), olens, None
+
         return xs_pad, olens, None

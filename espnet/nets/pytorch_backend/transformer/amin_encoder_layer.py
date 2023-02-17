@@ -39,6 +39,8 @@ class AxialWithoutPositionBlock(nn.Module):
         self.position_in_encoder = position_in_encoder
         if self.position_in_encoder == 0:
             inplanes = 1
+        # elif self.position_in_encoder == 11:
+        #     planes = 1
 
         self.conv_down = conv1x1(inplanes, width)
         self.conv1 = nn.Conv2d(width, width, kernel_size=1)
@@ -130,6 +132,9 @@ class AxialPositionGateBlock(nn.Module):
 
         if position_in_encoder == 0:
             inplanes = 1
+
+        if position_in_encoder == 11:
+            planes = 1
 
         width = int(planes * (base_width / 64.))
         self.conv_down = conv1x1(inplanes, width)

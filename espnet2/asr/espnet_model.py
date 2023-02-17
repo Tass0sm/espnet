@@ -397,6 +397,9 @@ class ESPnetASRModel(AbsESPnetModel):
             encoder_out.size(),
             speech.size(0),
         )
+
+        print("ENCODE_OUT", encoder_out.size(), encoder_out_lens)
+
         if (
             getattr(self.encoder, "selfattention_layer_type", None) != "lf_selfattn"
             and not self.is_encoder_whisper
