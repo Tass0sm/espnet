@@ -114,7 +114,9 @@ class AminTransformerEncoder(AbsEncoder):
                 torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
                 pos_enc_class(output_size, positional_dropout_rate),
             )
-        elif input_layer is None or input_layer.lower() == "none":
+        elif input_layer.lower() == "none":
+            self.embed = None
+        elif input_layer is None:
             if input_size == output_size:
                 self.embed = None
             else:
@@ -224,8 +226,15 @@ class AminTransformerEncoder(AbsEncoder):
         else:
             xs_pad = self.embed(xs_pad)
 
+        xs_pad = xs_pad.unsqueeze(1)
+        masks = masks.unsqueeze(1)
+
+        # print("XS_PAD SHAPE:", xs_pad.shape)
+        # print("MASKS SHAPE:", masks.shape)
+
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
+            # print("HELLO?", xs_pad, masks)
             xs_pad, masks = self.encoders(xs_pad, masks)
         else:
             for layer_idx, encoder_layer in enumerate(self.encoders):

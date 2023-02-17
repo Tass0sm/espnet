@@ -27,7 +27,7 @@ def conv1x1(in_planes, out_planes, stride=1):
 ###############################################################################
 
 class AxialWithoutPositionBlock(nn.Module):
-    expansion = 2
+    expansion = 1
 
     def __init__(self, position_in_encoder, inplanes, planes, stride=1, down_sample=None, groups=1,
                  base_width=64, dilation=1, norm_layer=None, kernel_size=56):
@@ -36,7 +36,8 @@ class AxialWithoutPositionBlock(nn.Module):
             norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.))
 
-        if position_in_encoder == 0:
+        self.position_in_encoder = position_in_encoder
+        if self.position_in_encoder == 0:
             inplanes = 1
 
         self.conv_down = conv1x1(inplanes, width)
@@ -51,20 +52,15 @@ class AxialWithoutPositionBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, cache=None):
         identity = x
-
-        # pdb.set_trace()
 
         out = self.conv_down(x)
         out = self.bn1(out)
         out = self.relu(out)
-        # print(out.shape)
         out = self.hight_block(out)
         out = self.width_block(out)
-
         out = self.relu(out)
-
         out = self.conv_up(out)
         out = self.bn2(out)
 
@@ -74,7 +70,7 @@ class AxialWithoutPositionBlock(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out
+        return out, mask
 
 
 class AxialPositionBlock(nn.Module):
@@ -101,7 +97,7 @@ class AxialPositionBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, cache=None):
         identity = x
 
         out = self.conv_down(x)
@@ -147,7 +143,7 @@ class AxialPositionGateBlock(nn.Module):
         self.down_sample = down_sample
         self.stride = stride
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, cache=None):
         identity = x
 
         out = self.conv_down(x)

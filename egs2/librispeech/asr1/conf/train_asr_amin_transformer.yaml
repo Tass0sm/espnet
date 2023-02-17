@@ -1,7 +1,7 @@
 batch_type: numel
-batch_bins: 16000000
+batch_bins: 1600000
 accum_grad: 4
-max_epoch: 1 # 200
+max_epoch: 4 # 200
 patience: none
 # The initialization method for model parameters
 init: xavier_uniform
@@ -20,8 +20,8 @@ encoder_conf:
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
     attention_dropout_rate: 0.0
-    input_layer: None
-    normalize_before: true
+    input_layer: none
+    normalize_before: false
 
 decoder: transformer
 decoder_conf:
