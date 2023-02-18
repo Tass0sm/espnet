@@ -227,8 +227,6 @@ class AminTransformerEncoder(AbsEncoder):
         b, t, f = xs_pad.shape
         xs_pad = xs_pad.reshape(b, t // self.output_width, self.output_width, f)
 
-        print("XS_PAD 3", xs_pad.shape)
-
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
             xs_pad, masks = self.encoders(xs_pad, masks)

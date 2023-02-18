@@ -109,10 +109,6 @@ class AminEncoderLayer(nn.Module):
             x_concat = torch.cat((x, self.self_attn(x_q, x, x, mask)), dim=-1)
             x = residual + stoch_layer_coeff * self.concat_linear(x_concat)
         else:
-            print("X_Q", x_q.shape)
-            print("X", x.shape)
-            print("MASK", mask.shape)
-
             x = residual + stoch_layer_coeff * self.dropout(
                 self.self_attn(x_q, x, x, mask)
             )
