@@ -6,6 +6,7 @@
 from typing import List, Optional, Tuple
 
 import torch
+import torch.nn.functional as F
 from typeguard import check_argument_types
 
 from espnet2.asr.ctc import CTC
@@ -13,7 +14,7 @@ from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
 from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
-from espnet.nets.pytorch_backend.transformer.encoder_layer import EncoderLayer
+from espnet.nets.pytorch_backend.transformer.amin_encoder_layer import AminEncoderLayer
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 from espnet.nets.pytorch_backend.transformer.multi_layer_conv import (
     Conv1dLinear,
@@ -34,7 +35,7 @@ from espnet.nets.pytorch_backend.transformer.subsampling import (
 )
 
 
-class TransformerEncoder(AbsEncoder):
+class AminTransformerEncoder(AbsEncoder):
     """Transformer encoder module.
 
     Args:
@@ -62,14 +63,15 @@ class TransformerEncoder(AbsEncoder):
     def __init__(
         self,
         input_size: int,
-        output_size: int = 256,
+        output_width: int = 8,
+        output_height: int = 64,
         attention_heads: int = 4,
         linear_units: int = 2048,
         num_blocks: int = 6,
         dropout_rate: float = 0.1,
         positional_dropout_rate: float = 0.1,
         attention_dropout_rate: float = 0.0,
-        input_layer: Optional[str] = "conv2d",
+        input_layer: Optional[str] = "linear",
         pos_enc_class=PositionalEncoding,
         normalize_before: bool = True,
         concat_after: bool = False,
@@ -81,39 +83,47 @@ class TransformerEncoder(AbsEncoder):
     ):
         assert check_argument_types()
         super().__init__()
+
+        # after embedded to the output height, chunk it according to
+        # output_width. The patches all have output_width * output_height size.
+        self.output_width = output_width
+        output_size = output_width * output_height
         self._output_size = output_size
 
         if input_layer == "linear":
+            # use this to go down from 80 to 64 freqs
             self.embed = torch.nn.Sequential(
-                torch.nn.Linear(input_size, output_size),
-                torch.nn.LayerNorm(output_size),
+                torch.nn.Linear(input_size, output_height),
+                torch.nn.LayerNorm(output_height),
                 torch.nn.Dropout(dropout_rate),
                 torch.nn.ReLU(),
-                pos_enc_class(output_size, positional_dropout_rate),
+                pos_enc_class(output_height, positional_dropout_rate),
             )
         elif input_layer == "conv2d":
-            self.embed = Conv2dSubsampling(input_size, output_size, dropout_rate)
+            self.embed = Conv2dSubsampling(input_size, output_height, dropout_rate)
         elif input_layer == "conv2d1":
-            self.embed = Conv2dSubsampling1(input_size, output_size, dropout_rate)
+            self.embed = Conv2dSubsampling1(input_size, output_height, dropout_rate)
         elif input_layer == "conv2d2":
-            self.embed = Conv2dSubsampling2(input_size, output_size, dropout_rate)
+            self.embed = Conv2dSubsampling2(input_size, output_height, dropout_rate)
         elif input_layer == "conv2d6":
-            self.embed = Conv2dSubsampling6(input_size, output_size, dropout_rate)
+            self.embed = Conv2dSubsampling6(input_size, output_height, dropout_rate)
         elif input_layer == "conv2d8":
-            self.embed = Conv2dSubsampling8(input_size, output_size, dropout_rate)
+            self.embed = Conv2dSubsampling8(input_size, output_height, dropout_rate)
         elif input_layer == "embed":
             self.embed = torch.nn.Sequential(
-                torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
-                pos_enc_class(output_size, positional_dropout_rate),
+                torch.nn.Embedding(input_size, output_height, padding_idx=padding_idx),
+                pos_enc_class(output_height, positional_dropout_rate),
             )
         elif input_layer is None:
-            if input_size == output_size:
+            if input_size == output_height:
                 self.embed = None
             else:
-                self.embed = torch.nn.Linear(input_size, output_size)
+                self.embed = torch.nn.Linear(input_size, output_height)
         else:
             raise ValueError("unknown input_layer: " + input_layer)
+
         self.normalize_before = normalize_before
+
         if positionwise_layer_type == "linear":
             positionwise_layer = PositionwiseFeedForward
             positionwise_layer_args = (
@@ -139,10 +149,12 @@ class TransformerEncoder(AbsEncoder):
             )
         else:
             raise NotImplementedError("Support only linear or conv1d.")
+
         self.encoders = repeat(
             num_blocks,
-            lambda lnum: EncoderLayer(
-                output_size,
+            lambda lnum: AminEncoderLayer(
+                output_width,
+                output_height,
                 MultiHeadedAttention(
                     attention_heads, output_size, attention_dropout_rate
                 ),
@@ -182,7 +194,7 @@ class TransformerEncoder(AbsEncoder):
         """
         masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
-        print("XS_PAD", xs_pad.shape)
+        print("XS_PAD 1", xs_pad.shape)
 
         if self.embed is None:
             xs_pad = xs_pad
@@ -204,8 +216,18 @@ class TransformerEncoder(AbsEncoder):
             xs_pad, masks = self.embed(xs_pad, masks)
         else:
             xs_pad = self.embed(xs_pad)
+            if masks is not None:
+                masks = masks[:, :, ::self.output_width]
 
-        print("XS_PAD", xs_pad.shape)
+        b, t, f = xs_pad.shape
+        new_t = ((t // self.output_width) + 1) * self.output_width
+        padding_amounts = (0, 0, 0, new_t - t, 0, 0)
+        xs_pad = F.pad(xs_pad, padding_amounts, "constant", 0)
+
+        b, t, f = xs_pad.shape
+        xs_pad = xs_pad.reshape(b, t // self.output_width, self.output_width, f)
+
+        print("XS_PAD 3", xs_pad.shape)
 
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
@@ -226,6 +248,8 @@ class TransformerEncoder(AbsEncoder):
                     if self.interctc_use_conditioning:
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
+
+        xs_pad = xs_pad.reshape(b, t // self.output_width, self._output_size)
 
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
