@@ -5,6 +5,7 @@
 
 from typing import List, Optional, Tuple
 
+import math
 import torch
 import torch.nn.functional as F
 from typeguard import check_argument_types
@@ -220,7 +221,7 @@ class AminTransformerEncoder(AbsEncoder):
                 masks = masks[:, :, ::self.output_width]
 
         b, t, f = xs_pad.shape
-        new_t = ((t // self.output_width) + 1) * self.output_width
+        new_t = math.ceil(t / self.output_width) * self.output_width
         padding_amounts = (0, 0, 0, new_t - t, 0, 0)
         xs_pad = F.pad(xs_pad, padding_amounts, "constant", 0)
 
