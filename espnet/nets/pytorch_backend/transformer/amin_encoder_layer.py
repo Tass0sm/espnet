@@ -37,8 +37,8 @@ class AminEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        width,
         height,
+        width,
         self_attn,
         feed_forward,
         dropout_rate,
@@ -48,14 +48,14 @@ class AminEncoderLayer(nn.Module):
     ):
         """Construct an EncoderLayer object."""
         super(AminEncoderLayer, self).__init__()
-        size = width * height
+        size = height * width
         self.self_attn = self_attn
         self.feed_forward = feed_forward
-        self.norm1 = LayerNorm(size)
-        self.norm2 = LayerNorm(size)
+        self.norm1 = LayerNorm((height, width))
+        self.norm2 = LayerNorm((height, width))
         self.dropout = nn.Dropout(dropout_rate)
-        self.width = width
         self.height = height
+        self.width = width
         self.size = size
         self.normalize_before = normalize_before
         self.concat_after = concat_after
@@ -67,12 +67,12 @@ class AminEncoderLayer(nn.Module):
         """Compute encoded features.
 
         Args:
-            x_input (torch.Tensor): Input tensor (#batch, time, width, height).
+            x_input (torch.Tensor): Input tensor (#batch, time, height, width).
             mask (torch.Tensor): Mask tensor for the input (#batch, 1, time).
-            cache (torch.Tensor): Cache tensor of the input (#batch, time - 1, width, height).
+            cache (torch.Tensor): Cache tensor of the input (#batch, time - 1, height, width).
 
         Returns:
-            torch.Tensor: Output tensor (#batch, time, width, height).
+            torch.Tensor: Output tensor (#batch, time, height, width).
             torch.Tensor: Mask tensor (#batch, 1, time).
 
         """
@@ -85,13 +85,13 @@ class AminEncoderLayer(nn.Module):
             skip_layer = torch.rand(1).item() < self.stochastic_depth_rate
             stoch_layer_coeff = 1.0 / (1 - self.stochastic_depth_rate)
 
+        # print("LAYER MASK 1", mask.shape)
+        # print("LAYER X 1", x.shape)
+
         if skip_layer:
             if cache is not None:
                 x = torch.cat([cache, x], dim=1)
             return x, mask
-
-        b, t, w, h = x.shape
-        x = x.reshape(b, t, self.size)
 
         residual = x
         if self.normalize_before:
@@ -100,10 +100,14 @@ class AminEncoderLayer(nn.Module):
         if cache is None:
             x_q = x
         else:
-            assert cache.shape == (x.shape[0], x.shape[1] - 1, self.size)
-            x_q = x[:, -1:, :]
-            residual = residual[:, -1:, :]
-            mask = None if mask is None else mask[:, -1:, :]
+            assert cache.shape == (x.shape[0], x.shape[1] - 1, self.height, self.width)
+            x_q = x[:, -1:, :, :]
+            residual = residual[:, -1:, :, :]
+            mask = None if mask is None else mask[:, -1:, :, :]
+
+        # b, t, h, w = x.shape
+        # x = x.reshape(b, t, self.size)
+        # residual = residual.reshape(b, t, self.size)
 
         if self.concat_after:
             x_concat = torch.cat((x, self.self_attn(x_q, x, x, mask)), dim=-1)
@@ -112,19 +116,21 @@ class AminEncoderLayer(nn.Module):
             x = residual + stoch_layer_coeff * self.dropout(
                 self.self_attn(x_q, x, x, mask)
             )
+
         if not self.normalize_before:
             x = self.norm1(x)
+
+        # x = x.reshape(b, t, self.height, self.width)
 
         residual = x
         if self.normalize_before:
             x = self.norm2(x)
         x = residual + stoch_layer_coeff * self.dropout(self.feed_forward(x))
+
         if not self.normalize_before:
             x = self.norm2(x)
 
         if cache is not None:
             x = torch.cat([cache, x], dim=1)
-
-        x = x.reshape(b, t, self.width, self.height)
 
         return x, mask

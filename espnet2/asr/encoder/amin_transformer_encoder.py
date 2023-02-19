@@ -88,7 +88,7 @@ class AminTransformerEncoder(AbsEncoder):
         # after embedded to the output height, chunk it according to
         # output_width. The patches all have output_width * output_height size.
         self.output_width = output_width
-        output_size = output_width * output_height
+        output_size = output_height * output_width
         self._output_size = output_size
 
         if input_layer == "linear":
@@ -154,8 +154,8 @@ class AminTransformerEncoder(AbsEncoder):
         self.encoders = repeat(
             num_blocks,
             lambda lnum: AminEncoderLayer(
-                output_width,
                 output_height,
+                output_width,
                 MultiHeadedAttention(
                     attention_heads, output_size, attention_dropout_rate
                 ),
@@ -226,7 +226,9 @@ class AminTransformerEncoder(AbsEncoder):
         xs_pad = F.pad(xs_pad, padding_amounts, "constant", 0)
 
         b, t, f = xs_pad.shape
-        xs_pad = xs_pad.reshape(b, t // self.output_width, self.output_width, f)
+        xs_pad = xs_pad.reshape(b, t // self.output_width, self.output_height, self.output_width)
+
+        print("XS_PAD 2", xs_pad.shape)
 
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
@@ -248,7 +250,7 @@ class AminTransformerEncoder(AbsEncoder):
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
 
-        xs_pad = xs_pad.reshape(b, t // self.output_width, self._output_size)
+        xs_pad = xs_pad.reshape(b, t // self.output_height, self._output_size)
 
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
