@@ -262,12 +262,11 @@ class AminTransformerEncoder(AbsEncoder):
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
 
-        print("XS_PAD 3", xs_pad.shape)
-
-        # xs_pad = xs_pad.reshape(b, t // self.output_height, self._output_size)
-
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
+
+        b, t, c, h, w = xs_pad.shape
+        xs_pad = xs_pad.contiguous().view(b, t, c * h * w)
 
         olens = masks.squeeze(1).sum(1)
         if len(intermediate_outs) > 0:
