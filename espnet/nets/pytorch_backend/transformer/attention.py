@@ -53,20 +53,20 @@ class AxialAttentionWithoutPosition(nn.Module):
         """Compute ...
 
         Args:
-            x (torch.Tensor): Query, key, and value tensors (#batch, time1, channels, height, width).
+            x (torch.Tensor): Query, key, and value tensors (#batch * time1, channels, height, width).
             mask (torch.Tensor): Mask tensor (#batch, 1, time2) or
                 (#batch, time1, time2).
 
         Returns:
-            torch.Tensor: Output tensor (#batch, time1, d_model).
+            torch.Tensor: Output tensor (#batch * time1, channels, height, width).
 
         """
         if self.width:
-            x = x.permute(0, 3, 1, 2, 4)  # N, H, T, C, W
+            x = x.permute(0, 2, 1, 3)  # N * T, H, C, W
         else:
-            x = x.permute(0, 4, 1, 2, 3)  # N, W, T, C, H
-        N, W, T, C, H = x.shape
-        x = x.contiguous().view(N * W * T, C, H)
+            x = x.permute(0, 3, 1, 2)  # N * T, W, C, H
+        NT, W, C, H = x.shape
+        x = x.contiguous().view(NT * W, C, H)
 
         # Transformations
         qkv = self.bn_qkv(self.qkv_transform(x))
@@ -78,25 +78,25 @@ class AxialAttentionWithoutPosition(nn.Module):
         # group_planes * 2 = group_planes // 2 + group_planes // 2 +
         # group_planes as long as group_planes >= 2.
 
-        q, k, v = torch.split(qkv.reshape(N * W * T, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
+        q, k, v = torch.split(qkv.reshape(NT * W, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
 
         qk = torch.einsum('bgci, bgcj->bgij', q, k)
 
-        stacked_similarity = self.bn_similarity(qk).reshape(N * W * T, 1, self.groups, H, H).sum(dim=1).contiguous()
+        stacked_similarity = self.bn_similarity(qk).reshape(NT * W, 1, self.groups, H, H).sum(dim=1).contiguous()
 
         similarity = F.softmax(stacked_similarity, dim=3)
         sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
 
-        sv = sv.reshape(N * W * T, self.out_planes * 1, H).contiguous()
-        output = self.bn_output(sv).reshape(N, W, T, self.out_planes, 1, H).sum(dim=-2).contiguous()
+        sv = sv.reshape(NT * W, self.out_planes * 1, H).contiguous()
+        output = self.bn_output(sv).reshape(NT, W, self.out_planes, 1, H).sum(dim=-2).contiguous()
 
 
         if self.width:
-            # Now: N, H, T, C, W
-            output = output.permute(0, 2, 3, 1, 4) # Return to normal shape
+            # Now: NT, H, C, W
+            output = output.permute(0, 2, 1, 3) # Return to normal shape
         else:
-            # Now: N, W, T, C, H
-            output = output.permute(0, 2, 3, 4, 1) # Return to normal shape
+            # Now: NT, W, C, H
+            output = output.permute(0, 2, 3, 1) # Return to normal shape
 
         if self.stride > 1:
             output = self.pooling(output)

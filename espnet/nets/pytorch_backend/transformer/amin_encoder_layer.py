@@ -18,27 +18,19 @@ from espnet.nets.pytorch_backend.transformer.attention import (
     AxialAttentionWithPositionAndGate
 )
 
+def conv1x1(in_planes, out_planes, stride=1):
+    """1x1 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
 class AminEncoderLayer(nn.Module):
     """Encoder layer module.
 
     Args:
         width (int): Input width dimension.
         height (int): Input height dimension.
-        self_attn (torch.nn.Module): Self-attention module instance.
-            `MultiHeadedAttention` or `RelPositionMultiHeadedAttention` instance
-            can be used as the argument.
-        feed_forward (torch.nn.Module): Feed-forward module instance.
-            `PositionwiseFeedForward`, `MultiLayeredConv1d`, or `Conv1dLinear` instance
-            can be used as the argument.
-        dropout_rate (float): Dropout rate.
-        normalize_before (bool): Whether to use layer_norm before the first block.
-        concat_after (bool): Whether to concat attention layer's input and output.
-            if True, additional linear will be applied.
-            i.e. x -> x + linear(concat(x, att(x)))
-            if False, no additional linear will be applied. i.e. x -> x + att(x)
-        stochastic_depth_rate (float): Proability to skip this layer.
-            During training, the layer may skip residual computation and return input
-            as-is with given probability.
+        channels (int): channels of tensor coming into and out of the encoder layer.
+        hidden_channels (int): channels of tensor coming out of attention layer.
+        attention_type (str): type of attention (without position, with position, with position and gate)
     """
 
     def __init__(
@@ -47,11 +39,10 @@ class AminEncoderLayer(nn.Module):
         width,
         channels,
         hidden_channels,
-        self_attn,
+        attention_type,
         feed_forward,
         dropout_rate,
         normalize_before=True,
-        concat_after=False,
         stochastic_depth_rate=0.0,
     ):
         """Construct an EncoderLayer object."""
@@ -63,17 +54,25 @@ class AminEncoderLayer(nn.Module):
         self.hidden_channels = hidden_channels
         self.size = size
 
-        self.self_attn = self_attn
-        self.flatten = nn.Conv2d(hidden_channels, channels, 1)
-        self.feed_forward = feed_forward
-        self.norm1 = LayerNorm((height, width))
-        self.norm2 = LayerNorm((height, width))
-        self.dropout = nn.Dropout(dropout_rate)
-        self.normalize_before = normalize_before
-        self.concat_after = concat_after
-        if self.concat_after:
-            self.concat_linear = nn.Linear(size + size, size)
-        self.stochastic_depth_rate = stochastic_depth_rate
+        self.conv_down = conv1x1(channels, hidden_channels)
+        self.bn1 = LayerNorm((height, width))
+
+        if attention_type == "without-position":
+            self.height_block = AxialAttentionWithoutPosition(hidden_channels, hidden_channels, groups=1, width=False)
+            self.width_block = AxialAttentionWithoutPosition(hidden_channels, hidden_channels, groups=1, width=True)
+        elif attention_type == "with-position":
+            self.height_block = AxialAttentionWithPosition(hidden_channels, hidden_channels, groups=1, width=False)
+            self.width_block = AxialAttentionWithPosition(hidden_channels, hidden_channels, groups=1, width=True)
+        elif attention_type == "with-position-gated":
+            self.height_block = AxialAttentionWithPositionAndGate(hidden_channels, hidden_channels, groups=1, width=False)
+            self.width_block = AxialAttentionWithPositionAndGate(hidden_channels, hidden_channels, groups=1, width=True)
+        else:
+            raise NotImplementedError("Bad attention type")
+
+        self.bn2 = LayerNorm((height, width))
+        self.conv_up = conv1x1(hidden_channels, channels)
+
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x, mask, cache=None):
         """Compute encoded features.
@@ -89,59 +88,22 @@ class AminEncoderLayer(nn.Module):
 
         """
 
-        skip_layer = False
-        # with stochastic depth, residual connection `x + f(x)` becomes
-        # `x <- x + 1 / (1 - p) * f(x)` at training time.
-        stoch_layer_coeff = 1.0
-        if self.training and self.stochastic_depth_rate > 0:
-            skip_layer = torch.rand(1).item() < self.stochastic_depth_rate
-            stoch_layer_coeff = 1.0 / (1 - self.stochastic_depth_rate)
-
-        if skip_layer:
-            if cache is not None:
-                x = torch.cat([cache, x], dim=1)
-            return x, mask
-
-        residual = x
-        if self.normalize_before:
-            x = self.norm1(x)
-
-        if cache is None:
-            x_q = x
-        else:
-            assert cache.shape == (x.shape[0], x.shape[1] - 1, self.height, self.width)
-            x_q = x[:, -1:, :, :]
-            residual = residual[:, -1:, :, :]
-            mask = None if mask is None else mask[:, -1:, :, :]
-
-        if self.concat_after:
-            x_concat = torch.cat((x, self.self_attn(x_q, x, x, mask)), dim=-1)
-            x = residual + stoch_layer_coeff * self.concat_linear(x_concat)
-        else:
-            x = residual + stoch_layer_coeff * self.dropout(
-                self.self_attn(x_q, x, x, mask)
-            )
-
-        if not self.normalize_before:
-            x = self.norm1(x)
-
-
-        # compress down to a single matrix for the feed forward step. Is this
-        # like WO in a normal transformer?
         b, t, c, h, w = x.shape
         x = x.contiguous().view(b * t, c, h, w)
-        x = self.flatten(x)
-        x = x.contiguous().view(b, t, self.channels, h, w)
 
-        residual = x
-        if self.normalize_before:
-            x = self.norm2(x)
-        x = residual + stoch_layer_coeff * self.dropout(self.feed_forward(x))
+        identity = x
 
-        if not self.normalize_before:
-            x = self.norm2(x)
+        out = self.conv_down(x) # expand c dim to hidden_channels
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.height_block(None, out, None, mask)
+        out = self.width_block(None, out, None, mask)
+        out = self.relu(out)
+        out = self.conv_up(out) # contract back to normal number of channels
+        out = self.bn2(x)
+        out += identity
+        out = self.relu(out)
 
-        if cache is not None:
-            x = torch.cat([cache, x], dim=1)
+        x = x.contiguous().view(b, t, c, h, w)
 
         return x, mask

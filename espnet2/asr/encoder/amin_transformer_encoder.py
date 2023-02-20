@@ -86,6 +86,7 @@ class AminTransformerEncoder(AbsEncoder):
         padding_idx: int = -1,
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
+        attention_type: str = "without-position"
     ):
         assert check_argument_types()
         super().__init__()
@@ -167,13 +168,10 @@ class AminTransformerEncoder(AbsEncoder):
                 output_width,
                 input_planes,
                 output_planes,
-                AxialAttentionWithoutPosition(
-                    input_planes, output_planes, groups=groups
-                ),
+                attention_type,
                 positionwise_layer,
                 dropout_rate,
                 normalize_before,
-                concat_after,
             ),
         )
         if self.normalize_before:
@@ -206,8 +204,6 @@ class AminTransformerEncoder(AbsEncoder):
         """
         masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
-        print("XS_PAD 1", xs_pad.shape)
-
         if self.embed is None:
             xs_pad = xs_pad
         elif (
@@ -239,8 +235,6 @@ class AminTransformerEncoder(AbsEncoder):
         b, t, f = xs_pad.shape
         xs_pad = xs_pad.reshape(b, t // self.output_width, 1, self.output_height, self.output_width)
         # (Batches, Time, Channels, Height, Width)
-
-        print("XS_PAD 2", xs_pad.shape)
 
         intermediate_outs = []
         if len(self.interctc_layer_idx) == 0:
