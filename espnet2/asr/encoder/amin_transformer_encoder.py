@@ -13,7 +13,12 @@ from typeguard import check_argument_types
 from espnet2.asr.ctc import CTC
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
-from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
+from espnet.nets.pytorch_backend.transformer.attention import (
+    MultiHeadedAttention,
+    AxialAttentionWithoutPosition,
+    AxialAttentionWithPosition,
+    AxialAttentionWithPositionAndGate
+)
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
 from espnet.nets.pytorch_backend.transformer.amin_encoder_layer import AminEncoderLayer
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
@@ -88,6 +93,7 @@ class AminTransformerEncoder(AbsEncoder):
         # after embedded to the output height, chunk it according to
         # output_width. The patches all have output_width * output_height size.
         self.output_width = output_width
+        self.output_height = output_height
         output_size = output_height * output_width
         self._output_size = output_size
 
@@ -125,12 +131,15 @@ class AminTransformerEncoder(AbsEncoder):
 
         self.normalize_before = normalize_before
 
+        input_planes = 1
+        output_planes = 2
+        groups = 1
+
         if positionwise_layer_type == "linear":
-            positionwise_layer = PositionwiseFeedForward
-            positionwise_layer_args = (
-                output_size,
-                linear_units,
-                dropout_rate,
+            positionwise_layer = torch.nn.Sequential(
+                torch.nn.Flatten(start_dim=2),
+                PositionwiseFeedForward(output_size, linear_units, dropout_rate),
+                torch.nn.Unflatten(2, torch.Size([input_planes, output_height, output_width]))
             )
         elif positionwise_layer_type == "conv1d":
             positionwise_layer = MultiLayeredConv1d
@@ -156,17 +165,19 @@ class AminTransformerEncoder(AbsEncoder):
             lambda lnum: AminEncoderLayer(
                 output_height,
                 output_width,
-                MultiHeadedAttention(
-                    attention_heads, output_size, attention_dropout_rate
+                input_planes,
+                output_planes,
+                AxialAttentionWithoutPosition(
+                    input_planes, output_planes, groups=groups
                 ),
-                positionwise_layer(*positionwise_layer_args),
+                positionwise_layer,
                 dropout_rate,
                 normalize_before,
                 concat_after,
             ),
         )
         if self.normalize_before:
-            self.after_norm = LayerNorm(output_size)
+            self.after_norm = LayerNorm((output_height, output_width))
 
         self.interctc_layer_idx = interctc_layer_idx
         if len(interctc_layer_idx) > 0:
@@ -226,7 +237,8 @@ class AminTransformerEncoder(AbsEncoder):
         xs_pad = F.pad(xs_pad, padding_amounts, "constant", 0)
 
         b, t, f = xs_pad.shape
-        xs_pad = xs_pad.reshape(b, t // self.output_width, self.output_height, self.output_width)
+        xs_pad = xs_pad.reshape(b, t // self.output_width, 1, self.output_height, self.output_width)
+        # (Batches, Time, Channels, Height, Width)
 
         print("XS_PAD 2", xs_pad.shape)
 
@@ -250,7 +262,9 @@ class AminTransformerEncoder(AbsEncoder):
                         ctc_out = ctc.softmax(encoder_out)
                         xs_pad = xs_pad + self.conditioning_layer(ctc_out)
 
-        xs_pad = xs_pad.reshape(b, t // self.output_height, self._output_size)
+        print("XS_PAD 3", xs_pad.shape)
+
+        # xs_pad = xs_pad.reshape(b, t // self.output_height, self._output_size)
 
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)

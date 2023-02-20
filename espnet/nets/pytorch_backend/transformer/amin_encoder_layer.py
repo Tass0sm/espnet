@@ -11,6 +11,12 @@ from torch import nn
 
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 
+from espnet.nets.pytorch_backend.transformer.attention import (
+    MultiHeadedAttention,
+    AxialAttentionWithoutPosition,
+    AxialAttentionWithPosition,
+    AxialAttentionWithPositionAndGate
+)
 
 class AminEncoderLayer(nn.Module):
     """Encoder layer module.
@@ -39,6 +45,8 @@ class AminEncoderLayer(nn.Module):
         self,
         height,
         width,
+        channels,
+        hidden_channels,
         self_attn,
         feed_forward,
         dropout_rate,
@@ -49,14 +57,18 @@ class AminEncoderLayer(nn.Module):
         """Construct an EncoderLayer object."""
         super(AminEncoderLayer, self).__init__()
         size = height * width
+        self.height = height
+        self.width = width
+        self.channels = channels
+        self.hidden_channels = hidden_channels
+        self.size = size
+
         self.self_attn = self_attn
+        self.flatten = nn.Conv2d(hidden_channels, channels, 1)
         self.feed_forward = feed_forward
         self.norm1 = LayerNorm((height, width))
         self.norm2 = LayerNorm((height, width))
         self.dropout = nn.Dropout(dropout_rate)
-        self.height = height
-        self.width = width
-        self.size = size
         self.normalize_before = normalize_before
         self.concat_after = concat_after
         if self.concat_after:
@@ -67,12 +79,12 @@ class AminEncoderLayer(nn.Module):
         """Compute encoded features.
 
         Args:
-            x_input (torch.Tensor): Input tensor (#batch, time, height, width).
+            x_input (torch.Tensor): Input tensor (#batch, time, channels, height, width).
             mask (torch.Tensor): Mask tensor for the input (#batch, 1, time).
             cache (torch.Tensor): Cache tensor of the input (#batch, time - 1, height, width).
 
         Returns:
-            torch.Tensor: Output tensor (#batch, time, height, width).
+            torch.Tensor: Output tensor (#batch, time, channels, height, width).
             torch.Tensor: Mask tensor (#batch, 1, time).
 
         """
@@ -84,9 +96,6 @@ class AminEncoderLayer(nn.Module):
         if self.training and self.stochastic_depth_rate > 0:
             skip_layer = torch.rand(1).item() < self.stochastic_depth_rate
             stoch_layer_coeff = 1.0 / (1 - self.stochastic_depth_rate)
-
-        # print("LAYER MASK 1", mask.shape)
-        # print("LAYER X 1", x.shape)
 
         if skip_layer:
             if cache is not None:
@@ -105,10 +114,6 @@ class AminEncoderLayer(nn.Module):
             residual = residual[:, -1:, :, :]
             mask = None if mask is None else mask[:, -1:, :, :]
 
-        # b, t, h, w = x.shape
-        # x = x.reshape(b, t, self.size)
-        # residual = residual.reshape(b, t, self.size)
-
         if self.concat_after:
             x_concat = torch.cat((x, self.self_attn(x_q, x, x, mask)), dim=-1)
             x = residual + stoch_layer_coeff * self.concat_linear(x_concat)
@@ -120,7 +125,13 @@ class AminEncoderLayer(nn.Module):
         if not self.normalize_before:
             x = self.norm1(x)
 
-        # x = x.reshape(b, t, self.height, self.width)
+
+        # compress down to a single matrix for the feed forward step. Is this
+        # like WO in a normal transformer?
+        b, t, c, h, w = x.shape
+        x = x.contiguous().view(b * t, c, h, w)
+        x = self.flatten(x)
+        x = x.contiguous().view(b, t, self.channels, h, w)
 
         residual = x
         if self.normalize_before:

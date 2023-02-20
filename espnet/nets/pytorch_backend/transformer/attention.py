@@ -10,7 +10,7 @@ import math
 
 import torch
 from torch import nn
-
+import torch.nn.functional as F
 
 ###############################################################################
 #                                    axial                                    #
@@ -30,6 +30,7 @@ class AxialAttentionWithoutPosition(nn.Module):
         self.out_planes = out_planes
         self.groups = groups
         self.group_planes = out_planes // groups
+        assert (self.group_planes >= 2)
         self.kernel_size = kernel_size
         self.stride = stride
         self.bias = bias
@@ -39,7 +40,7 @@ class AxialAttentionWithoutPosition(nn.Module):
         self.qkv_transform = qkv_transform(in_planes, out_planes * 2, kernel_size=1, stride=1,
                                            padding=0, bias=False)
         self.bn_qkv = nn.BatchNorm1d(out_planes * 2)
-        self.bn_similarity = nn.BatchNorm2d(groups )
+        self.bn_similarity = nn.BatchNorm2d(groups)
 
         self.bn_output = nn.BatchNorm1d(out_planes * 1)
 
@@ -48,11 +49,11 @@ class AxialAttentionWithoutPosition(nn.Module):
 
         self.reset_parameters()
 
-    def forward(self, x, mask):
+    def forward(self, query_ignored, x, value_ignored, mask):
         """Compute ...
 
         Args:
-            x (torch.Tensor): Query, key, and value tensors (#batch, time1, height, width).
+            x (torch.Tensor): Query, key, and value tensors (#batch, time1, channels, height, width).
             mask (torch.Tensor): Mask tensor (#batch, 1, time2) or
                 (#batch, time1, time2).
 
@@ -61,31 +62,41 @@ class AxialAttentionWithoutPosition(nn.Module):
 
         """
         if self.width:
-            x = x.permute(0, 2, 1, 3)
+            x = x.permute(0, 3, 1, 2, 4)  # N, H, T, C, W
         else:
-            x = x.permute(0, 3, 1, 2)  # N, W, C, H
-        N, W, C, H = x.shape
-        x = x.contiguous().view(N * W, C, H)
+            x = x.permute(0, 4, 1, 2, 3)  # N, W, T, C, H
+        N, W, T, C, H = x.shape
+        x = x.contiguous().view(N * W * T, C, H)
 
         # Transformations
         qkv = self.bn_qkv(self.qkv_transform(x))
-        q, k, v = torch.split(qkv.reshape(N * W, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
+
+        # groups * group_planes * 2 = output planes * 2, which qkv has because
+        # qkv_transform was defined to output that many channels. then q, k, and
+        # v should be formed for each group. group_planes == output planes * 2.
+
+        # group_planes * 2 = group_planes // 2 + group_planes // 2 +
+        # group_planes as long as group_planes >= 2.
+
+        q, k, v = torch.split(qkv.reshape(N * W * T, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
 
         qk = torch.einsum('bgci, bgcj->bgij', q, k)
 
-        stacked_similarity = self.bn_similarity(qk).reshape(N * W, 1, self.groups, H, H).sum(dim=1).contiguous()
+        stacked_similarity = self.bn_similarity(qk).reshape(N * W * T, 1, self.groups, H, H).sum(dim=1).contiguous()
 
         similarity = F.softmax(stacked_similarity, dim=3)
         sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
 
-        sv = sv.reshape(N*W,self.out_planes * 1, H).contiguous()
-        output = self.bn_output(sv).reshape(N, W, self.out_planes, 1, H).sum(dim=-2).contiguous()
+        sv = sv.reshape(N * W * T, self.out_planes * 1, H).contiguous()
+        output = self.bn_output(sv).reshape(N, W, T, self.out_planes, 1, H).sum(dim=-2).contiguous()
 
 
         if self.width:
-            output = output.permute(0, 2, 1, 3)
+            # Now: N, H, T, C, W
+            output = output.permute(0, 2, 3, 1, 4) # Return to normal shape
         else:
-            output = output.permute(0, 2, 3, 1)
+            # Now: N, W, T, C, H
+            output = output.permute(0, 2, 3, 4, 1) # Return to normal shape
 
         if self.stride > 1:
             output = self.pooling(output)
