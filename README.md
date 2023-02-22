@@ -2,6 +2,11 @@
 
 Our fork of espnet for CSE 5539 experiments.
 
+We explored using ideas from image processing on the spectogram. 
+
+1. Using axial attention blocks
+2. Using SWIN transformer blocks
+
 # ASR
 
 ## Baseline
