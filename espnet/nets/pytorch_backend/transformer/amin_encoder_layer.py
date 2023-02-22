@@ -13,9 +13,7 @@ from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 
 from espnet.nets.pytorch_backend.transformer.attention import (
     MultiHeadedAttention,
-    AxialAttentionWithoutPosition,
-    AxialAttentionWithPosition,
-    AxialAttentionWithPositionAndGate
+    AxialAttention
 )
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -39,6 +37,7 @@ class AminEncoderLayer(nn.Module):
         width,
         channels,
         hidden_channels,
+        groups,
         attention_type,
         feed_forward,
         dropout_rate,
@@ -58,14 +57,14 @@ class AminEncoderLayer(nn.Module):
         self.bn1 = LayerNorm((height, width))
 
         if attention_type == "without-position":
-            self.height_block = AxialAttentionWithoutPosition(hidden_channels, hidden_channels, groups=1, width=False)
-            self.width_block = AxialAttentionWithoutPosition(hidden_channels, hidden_channels, groups=1, width=True)
+            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False)
+            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True)
         elif attention_type == "with-position":
-            self.height_block = AxialAttentionWithPosition(hidden_channels, hidden_channels, groups=1, width=False)
-            self.width_block = AxialAttentionWithPosition(hidden_channels, hidden_channels, groups=1, width=True)
+            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False, with_position=True)
+            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True, with_position=True)
         elif attention_type == "with-position-gated":
-            self.height_block = AxialAttentionWithPositionAndGate(hidden_channels, hidden_channels, groups=1, width=False)
-            self.width_block = AxialAttentionWithPositionAndGate(hidden_channels, hidden_channels, groups=1, width=True)
+            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False, with_position=True, with_gate=True)
+            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True, with_position=True, with_gate=True)
         else:
             raise NotImplementedError("Bad attention type")
 
@@ -96,7 +95,13 @@ class AminEncoderLayer(nn.Module):
         out = self.conv_down(x) # expand c dim to hidden_channels
         out = self.bn1(out)
         out = self.relu(out)
+
+        print("OUT 1", out.shape)
+
         out = self.height_block(None, out, None, mask)
+
+        print("OUT 2", out.shape)
+
         out = self.width_block(None, out, None, mask)
         out = self.relu(out)
         out = self.conv_up(out) # contract back to normal number of channels

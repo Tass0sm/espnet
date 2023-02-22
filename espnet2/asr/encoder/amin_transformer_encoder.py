@@ -13,12 +13,6 @@ from typeguard import check_argument_types
 from espnet2.asr.ctc import CTC
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
-from espnet.nets.pytorch_backend.transformer.attention import (
-    MultiHeadedAttention,
-    AxialAttentionWithoutPosition,
-    AxialAttentionWithPosition,
-    AxialAttentionWithPositionAndGate
-)
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
 from espnet.nets.pytorch_backend.transformer.amin_encoder_layer import AminEncoderLayer
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
@@ -86,7 +80,10 @@ class AminTransformerEncoder(AbsEncoder):
         padding_idx: int = -1,
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
-        attention_type: str = "without-position"
+        attention_type: str = "without-position",
+        input_channels: int = 1,
+        hidden_channels: int = 2,
+        groups: int = 1
     ):
         assert check_argument_types()
         super().__init__()
@@ -132,15 +129,11 @@ class AminTransformerEncoder(AbsEncoder):
 
         self.normalize_before = normalize_before
 
-        input_planes = 1
-        output_planes = 2
-        groups = 1
-
         if positionwise_layer_type == "linear":
             positionwise_layer = torch.nn.Sequential(
                 torch.nn.Flatten(start_dim=2),
                 PositionwiseFeedForward(output_size, linear_units, dropout_rate),
-                torch.nn.Unflatten(2, torch.Size([input_planes, output_height, output_width]))
+                torch.nn.Unflatten(2, torch.Size([input_channels, output_height, output_width]))
             )
         elif positionwise_layer_type == "conv1d":
             positionwise_layer = MultiLayeredConv1d
@@ -166,8 +159,9 @@ class AminTransformerEncoder(AbsEncoder):
             lambda lnum: AminEncoderLayer(
                 output_height,
                 output_width,
-                input_planes,
-                output_planes,
+                input_channels,
+                hidden_channels,
+                groups,
                 attention_type,
                 positionwise_layer,
                 dropout_rate,
