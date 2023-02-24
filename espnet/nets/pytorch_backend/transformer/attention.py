@@ -11,15 +11,55 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
+import axial_attention.axial_attention as lucidrains
+
+###############################################################################
+#                              axial attention 2                              #
+###############################################################################
+
+class MultiHeadedAxialSelfAttentionWrapper(nn.Module):
+    """Multi-Head Axial Attention layer.
+
+    Args:
+        dim
+        shape
+        num_dimensions = 2
+        heads = 8
+        dim_heads = None
+        dim_index = -1
+        sum_axial_out = True
+    """
+
+    def __init__(self, dim, shape, num_dimensions = 2, heads = 8, dim_heads = None, dim_index = -1, sum_axial_out = True):
+        """Construct a MultiHeadedAxialSelfAttention object."""
+        super(MultiHeadedAxialSelfAttentionWrapper, self).__init__()
+        self.shape = shape
+        self.forward_attention = lucidrains.AxialAttention(dim, num_dimensions, heads, dim_heads, dim_index, sum_axial_out)
+
+    def forward(self, query_ignored, key, value_ignored, mask_ignored):
+        """Wrapper for computing axial attention.
+
+        Args:
+            query (torch.Tensor): Query tensor ignored
+            key (torch.Tensor): Key tensor (#batch, time2, original_size).
+            value (torch.Tensor): Value tensor ignored.
+            mask (torch.Tensor): Mask tensor ignored
+
+        Returns:
+            torch.Tensor: Output tensor (#batch, time1, original_size).
+
+        """
+        key_tensor = torch.unflatten(key, 2, self.shape)  # unflatten just for applying multihead
+        out = self.forward_attention(key_tensor)
+        out = torch.flatten(out, start_dim=2)
+        return out
 
 ###############################################################################
 #                                    axial                                    #
 ###############################################################################
 
-
 class qkv_transform(nn.Conv1d):
     """Conv1d for qkv_transform"""
-
 
 class AxialAttention(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, groups=8,
