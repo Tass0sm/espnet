@@ -11,10 +11,7 @@ from typeguard import check_argument_types
 from espnet2.asr.ctc import CTC
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
-from espnet.nets.pytorch_backend.transformer.attention import (
-    MultiHeadedAxialSelfAttentionWrapper,
-    MultiHeadedAttention,
-)
+from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
 from espnet.nets.pytorch_backend.transformer.encoder_layer import EncoderLayer
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
@@ -37,7 +34,7 @@ from espnet.nets.pytorch_backend.transformer.subsampling import (
 )
 
 
-class TransformerEncoder(AbsEncoder):
+class SwinTransformerEncoder(AbsEncoder):
     """Transformer encoder module.
 
     Args:
@@ -81,7 +78,6 @@ class TransformerEncoder(AbsEncoder):
         padding_idx: int = -1,
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
-        attention_type: str = "normal"
     ):
         assert check_argument_types()
         super().__init__()
@@ -143,36 +139,13 @@ class TransformerEncoder(AbsEncoder):
             )
         else:
             raise NotImplementedError("Support only linear or conv1d.")
-
-        if attention_type == "normal":
-            attn = MultiHeadedAttention(
-                attention_heads, output_size, attention_dropout_rate
-            )
-        elif attention_type == "axial":
-            attn = MultiHeadedAxialSelfAttentionWrapper(
-                    output_size,
-                    (1, output_size, 1),
-                    num_dimensions = 3,
-                    dim_heads = attention_heads,
-                    dim_index = -2 # attention over height, the second to last dimension
-                )
-        # elif attention_type = "axial-with-position":
-        #     attn = MultiHeadedAttention(
-        #         attention_heads, output_size, attention_dropout_rate
-        #     )
-        # elif attention_type = "axial-with-position-gated":
-        #     attn = MultiHeadedAttention(
-        #         attention_heads, output_size, attention_dropout_rate
-        #     )
-        else:
-            raise NotImplementedError("Support only normal, axial." # , axial-with-position, or axial-with-position-gated."
-                                      )
-
         self.encoders = repeat(
             num_blocks,
             lambda lnum: EncoderLayer(
                 output_size,
-                attn,
+                MultiHeadedAttention(
+                    attention_heads, output_size, attention_dropout_rate
+                ),
                 positionwise_layer(*positionwise_layer_args),
                 dropout_rate,
                 normalize_before,

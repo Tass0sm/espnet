@@ -168,6 +168,7 @@ class AminTransformerEncoder(AbsEncoder):
                 normalize_before,
             ),
         )
+
         if self.normalize_before:
             self.after_norm = LayerNorm((output_height, output_width))
 

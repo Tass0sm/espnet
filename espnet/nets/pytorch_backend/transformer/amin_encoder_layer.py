@@ -95,13 +95,7 @@ class AminEncoderLayer(nn.Module):
         out = self.conv_down(x) # expand c dim to hidden_channels
         out = self.bn1(out)
         out = self.relu(out)
-
-        print("OUT 1", out.shape)
-
         out = self.height_block(None, out, None, mask)
-
-        print("OUT 2", out.shape)
-
         out = self.width_block(None, out, None, mask)
         out = self.relu(out)
         out = self.conv_up(out) # contract back to normal number of channels
