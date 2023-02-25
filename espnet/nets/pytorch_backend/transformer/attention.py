@@ -17,7 +17,7 @@ import axial_attention.axial_attention as lucidrains
 #                              axial attention 2                              #
 ###############################################################################
 
-class MultiHeadedAxialSelfAttentionWrapper(nn.Module):
+class MultiHeadedLucidrainsAxialSelfAttentionWrapper(nn.Module):
     """Multi-Head Axial Attention layer.
 
     Args:
@@ -31,8 +31,8 @@ class MultiHeadedAxialSelfAttentionWrapper(nn.Module):
     """
 
     def __init__(self, dim, shape, num_dimensions = 2, heads = 8, dim_heads = None, dim_index = -1, sum_axial_out = True):
-        """Construct a MultiHeadedAxialSelfAttention object."""
-        super(MultiHeadedAxialSelfAttentionWrapper, self).__init__()
+        """Construct a MultiHeadedLucidrainsAxialSelfAttention object."""
+        super(MultiHeadedLucidrainsAxialSelfAttentionWrapper, self).__init__()
         self.shape = shape
         self.forward_attention = lucidrains.AxialAttention(dim, num_dimensions, heads, dim_heads, dim_index, sum_axial_out)
 
@@ -54,6 +54,58 @@ class MultiHeadedAxialSelfAttentionWrapper(nn.Module):
         out = torch.flatten(out, start_dim=2)
         return out
 
+class MultiHeadedMedicalAxialSelfAttentionWrapper(nn.Module):
+    """Multi-Head Axial Attention layer.
+
+    Args:
+        dim
+        shape
+        num_dimensions = 2
+        heads = 8
+        dim_heads = None
+        dim_index = -1
+        sum_axial_out = True
+    """
+
+    def __init__(self, dim, shape, num_dimensions = 2, heads = 8, dim_heads = None, dim_index = -1, sum_axial_out = True):
+        """Construct a MultiHeadedAxialSelfAttention object."""
+        super(MultiHeadedMedicalAxialSelfAttentionWrapper, self).__init__()
+        self.shape = shape
+        # dim should be the size of the dimension along which axial attention is applied.
+        # shape is ignored here.
+        # num dimensions is ignored here. this module assumes 3d tensors
+        # heads is ignored. this module doesn't support it now.
+        # dim_heads is ignored.
+
+        if dim_index == -1:
+            using_width = True
+        elif dim_index == -2:
+            using_width = False
+
+        # use dim for kernel size, because it seems like its used
+        self.forward_attention = AxialAttention(dim, dim, dim, num_dimensions, width=using_width)
+
+    def forward(self, query_ignored, key, value_ignored, mask_ignored):
+        """Wrapper for computing axial attention.
+
+        Args:
+            query (torch.Tensor): Query tensor ignored
+            key (torch.Tensor): Key tensor (#batch, time2, original_size).
+            value (torch.Tensor): Value tensor ignored.
+            mask (torch.Tensor): Mask tensor ignored
+
+        Returns:
+            torch.Tensor: Output tensor (#batch, time1, original_size).
+
+        """
+        key_tensor = torch.unflatten(key, 2, self.shape)  # unflatten just for applying multihead
+        b, t, c, h, w = key_tensor.shape
+        key_tensor = key_tensor.contiguous().view(b * t, c, h, w)
+        out = self.forward_attention(query_ignored, key_tensor, value_ignored, mask_ignored)
+        out = out.contiguous().view(b, t, c, h, w)
+        out = torch.flatten(out, start_dim=2)
+        return out
+
 ###############################################################################
 #                                    axial                                    #
 ###############################################################################
@@ -62,7 +114,7 @@ class qkv_transform(nn.Conv1d):
     """Conv1d for qkv_transform"""
 
 class AxialAttention(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, groups=8,
+    def __init__(self, in_planes, out_planes, kernel_size, heads=1, groups=8,
                  stride=1, bias=False, width=False, with_position=False, with_gate=False):
         assert (in_planes % groups == 0) and (out_planes % groups == 0)
         super(AxialAttention, self).__init__()
@@ -121,11 +173,11 @@ class AxialAttention(nn.Module):
 
         """
         if self.width:
-            x = x.permute(0, 2, 1, 3)  # N * T, H, C, W
+            x = x.permute(0, 2, 3, 1)  # N * T, H, W, C
         else:
-            x = x.permute(0, 3, 1, 2)  # N * T, W, C, H
-        NT, W, C, H = x.shape
-        x = x.contiguous().view(NT * W, C, H)
+            x = x.permute(0, 3, 2, 1)  # N * T, W, H, C
+        NT, W, H, C = x.shape
+        x = x.contiguous().view(NT * W, H, C)
 
         # Transformations
         qkv = self.bn_qkv(self.qkv_transform(x))
@@ -137,7 +189,7 @@ class AxialAttention(nn.Module):
         # group_planes * 2 = group_planes // 2 + group_planes // 2 +
         # group_planes as long as group_planes >= 2.
 
-        q, k, v = torch.split(qkv.reshape(NT * W, self.groups, self.group_planes * 2, H),
+        q, k, v = torch.split(qkv.reshape(NT * W, self.groups, self.group_planes * 2, C),
                               [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
 
         if self.with_position:
@@ -159,7 +211,7 @@ class AxialAttention(nn.Module):
 
         if self.with_position:
             stacked_similarity = torch.cat([qk, qr, kr], dim=1)
-            stacked_similarity = self.bn_similarity(stacked_similarity).view(NT * W, 3, self.groups, H, H).sum(dim=1)
+            stacked_similarity = self.bn_similarity(stacked_similarity).view(NT * W, 3, self.groups, C, C).sum(dim=1)
             similarity = F.softmax(stacked_similarity, dim=3)
             sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
             sve = torch.einsum('bgij,cij->bgci', similarity, v_embedding)
@@ -168,21 +220,21 @@ class AxialAttention(nn.Module):
                 sv = torch.mul(sv, self.f_sv)
                 sve = torch.mul(sve, self.f_sve)
 
-            stacked_output = torch.cat([sv, sve], dim=-1).view(NT * W, self.out_planes * 2, H)
-            output = self.bn_output(stacked_output).view(NT, W, self.out_planes, 2, H).sum(dim=-2)
+            stacked_output = torch.cat([sv, sve], dim=-1).view(NT * W, self.out_planes * 2, C)
+            output = self.bn_output(stacked_output).view(NT, W, self.out_planes, 2, C).sum(dim=-2)
         else:
-            stacked_similarity = self.bn_similarity(qk).reshape(NT * W, 1, self.groups, H, H).sum(dim=1).contiguous()
+            stacked_similarity = self.bn_similarity(qk).reshape(NT * W, 1, self.groups, C, C).sum(dim=1).contiguous()
             similarity = F.softmax(stacked_similarity, dim=3)
             sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
-            sv = sv.reshape(NT * W, self.out_planes * 1, H).contiguous()
-            output = self.bn_output(sv).reshape(NT, W, self.out_planes, 1, H).sum(dim=-2).contiguous()
+            sv = sv.reshape(NT * W, self.out_planes * 1, C).contiguous()
+            output = self.bn_output(sv).reshape(NT, W, self.out_planes, 1, C).sum(dim=-2).contiguous()
 
         if self.width:
-            # Now: NT, H, C, W
-            output = output.permute(0, 2, 1, 3) # Return to normal shape
+            # Now: NT, H, W, C
+            output = output.permute(0, 3, 2, 1) # Return to normal shape
         else:
-            # Now: NT, W, C, H
-            output = output.permute(0, 2, 3, 1) # Return to normal shape
+            # Now: NT, W, H, C
+            output = output.permute(0, 3, 1, 2) # Return to normal shape
 
         if self.stride > 1:
             output = self.pooling(output)

@@ -1,7 +1,7 @@
 batch_type: folded
 batch_size: 64
 accum_grad: 1
-max_epoch: 201
+max_epoch: 200
 patience: none
 # The initialization method for model parameters
 init: xavier_uniform
@@ -22,7 +22,7 @@ encoder_conf:
     attention_dropout_rate: 0.0
     input_layer: conv2d
     normalize_before: true
-    attention_type: lucidrains-axial
+    attention_type: medical-axial
 
 decoder: transformer
 decoder_conf:

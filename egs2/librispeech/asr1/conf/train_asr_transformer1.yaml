@@ -1,7 +1,7 @@
-batch_type: folded
-batch_size: 64
-accum_grad: 1
-max_epoch: 201
+batch_type: numel
+batch_bins: 16000000
+accum_grad: 4
+max_epoch: 25
 patience: none
 # The initialization method for model parameters
 init: xavier_uniform
@@ -13,8 +13,8 @@ keep_nbest_models: 10
 
 encoder: transformer
 encoder_conf:
-    output_size: 256
-    attention_heads: 4
+    output_size: 512
+    attention_heads: 8
     linear_units: 2048
     num_blocks: 12
     dropout_rate: 0.1
@@ -22,11 +22,10 @@ encoder_conf:
     attention_dropout_rate: 0.0
     input_layer: conv2d
     normalize_before: true
-    attention_type: lucidrains-axial
 
 decoder: transformer
 decoder_conf:
-    attention_heads: 4
+    attention_heads: 8
     linear_units: 2048
     num_blocks: 6
     dropout_rate: 0.1
@@ -41,7 +40,23 @@ model_conf:
 
 optim: adam
 optim_conf:
-    lr: 0.001
+    lr: 0.002
 scheduler: warmuplr
 scheduler_conf:
-    warmup_steps: 2500
+    warmup_steps: 25000
+
+specaug: specaug
+specaug_conf:
+    apply_time_warp: true
+    time_warp_window: 5
+    time_warp_mode: bicubic
+    apply_freq_mask: true
+    freq_mask_width_range:
+    - 0
+    - 30
+    num_freq_mask: 2
+    apply_time_mask: true
+    time_mask_width_range:
+    - 0
+    - 40
+    num_time_mask: 2

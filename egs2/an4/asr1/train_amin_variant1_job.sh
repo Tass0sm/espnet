@@ -18,5 +18,5 @@ set -x
 
 source path.sh
 
-/usr/bin/time ./run.sh --stage 11 --stop-stage 12 \
+/usr/bin/time ./run.sh --ngpu 1 --stage 11 --stop-stage 12 \
               --asr_config conf/train_asr_amin_transformer.yaml

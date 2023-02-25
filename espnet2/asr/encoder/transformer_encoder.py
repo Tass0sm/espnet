@@ -12,7 +12,8 @@ from espnet2.asr.ctc import CTC
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
 from espnet.nets.pytorch_backend.transformer.attention import (
-    MultiHeadedAxialSelfAttentionWrapper,
+    MultiHeadedLucidrainsAxialSelfAttentionWrapper,
+    MultiHeadedMedicalAxialSelfAttentionWrapper,
     MultiHeadedAttention,
 )
 from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
@@ -148,14 +149,23 @@ class TransformerEncoder(AbsEncoder):
             attn = MultiHeadedAttention(
                 attention_heads, output_size, attention_dropout_rate
             )
-        elif attention_type == "axial":
-            attn = MultiHeadedAxialSelfAttentionWrapper(
+        elif attention_type == "lucidrains-axial":
+            attn = MultiHeadedLucidrainsAxialSelfAttentionWrapper(
                     output_size,
                     (1, output_size, 1),
                     num_dimensions = 3,
                     dim_heads = attention_heads,
                     dim_index = -2 # attention over height, the second to last dimension
                 )
+        elif attention_type == "medical-axial":
+            attn = MultiHeadedMedicalAxialSelfAttentionWrapper(
+                    output_size,
+                    (1, output_size, 1),
+                    num_dimensions = 3,
+                    dim_heads = attention_heads,
+                    dim_index = -2 # attention over height, the second to last dimension
+                )
+
         # elif attention_type = "axial-with-position":
         #     attn = MultiHeadedAttention(
         #         attention_heads, output_size, attention_dropout_rate
