@@ -67,7 +67,7 @@ class MultiHeadedMedicalAxialSelfAttentionWrapper(nn.Module):
         sum_axial_out = True
     """
 
-    def __init__(self, dim, shape, num_dimensions = 2, heads = 8, dim_heads = None, dim_index = -1, sum_axial_out = True):
+    def __init__(self, dim, shape, num_dimensions = 2, heads = 8, dim_heads = None, dim_index = -1, sum_axial_out = True, with_position=False, with_gate=False):
         """Construct a MultiHeadedAxialSelfAttention object."""
         super(MultiHeadedMedicalAxialSelfAttentionWrapper, self).__init__()
         self.shape = shape
@@ -83,7 +83,7 @@ class MultiHeadedMedicalAxialSelfAttentionWrapper(nn.Module):
             using_width = False
 
         # use dim for kernel size, because it seems like its used
-        self.forward_attention = AxialAttention(dim, dim, dim, num_dimensions, width=using_width)
+        self.forward_attention = AxialAttention(dim, dim, num_dimensions, width=using_width, with_position=with_position, with_gate=with_gate)
 
     def forward(self, query_ignored, key, value_ignored, mask_ignored):
         """Wrapper for computing axial attention.
@@ -114,7 +114,7 @@ class qkv_transform(nn.Conv1d):
     """Conv1d for qkv_transform"""
 
 class AxialAttention(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, heads=1, groups=8,
+    def __init__(self, in_planes, out_planes, heads=1, groups=1,
                  stride=1, bias=False, width=False, with_position=False, with_gate=False):
         assert (in_planes % groups == 0) and (out_planes % groups == 0)
         super(AxialAttention, self).__init__()
@@ -123,7 +123,7 @@ class AxialAttention(nn.Module):
         self.groups = groups
         self.group_planes = out_planes // groups
         assert (self.group_planes >= 2)
-        self.kernel_size = kernel_size
+        self.kernel_size = out_planes
         self.stride = stride
         self.bias = bias
         self.width = width
