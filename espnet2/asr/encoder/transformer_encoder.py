@@ -82,7 +82,9 @@ class TransformerEncoder(AbsEncoder):
         padding_idx: int = -1,
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
-        attention_type: str = "normal"
+        attention_type: str = "normal",
+        attention_with_position: bool = False,
+        attention_with_gate: bool = False
     ):
         assert check_argument_types()
         super().__init__()
@@ -163,7 +165,9 @@ class TransformerEncoder(AbsEncoder):
                     (1, output_size, 1),
                     num_dimensions = 3,
                     dim_heads = attention_heads,
-                    dim_index = -2 # attention over height, the second to last dimension
+                    dim_index = -2, # attention over height, the second to last dimension
+                    with_position = attention_with_position,
+                    with_gate = attention_with_gate
                 )
 
         # elif attention_type = "axial-with-position":
