@@ -53,7 +53,7 @@ class AminEncoderLayer(nn.Module):
         self.hidden_channels = hidden_channels
         self.size = size
 
-        self.conv_down = conv1x1(channels, hidden_channels)
+        self.conv_down = conv1x1(channels, channels)
         self.bn1 = LayerNorm((height, width))
 
         if attention_type == "without-position":
@@ -69,7 +69,7 @@ class AminEncoderLayer(nn.Module):
             raise NotImplementedError("Bad attention type")
 
         self.bn2 = LayerNorm((height, width))
-        self.conv_up = conv1x1(hidden_channels, channels)
+        self.conv_up = conv1x1(channels, channels)
 
         self.relu = nn.ReLU(inplace=True)
 

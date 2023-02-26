@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=an4_variant3_test_job
+#SBATCH --job-name=an4_amin_variant3_test_job
 #SBATCH --time=6:00:00
 #SBATCH --nodes=1 --ntasks-per-node=32
 #SBATCH --cpus-per-task=1
