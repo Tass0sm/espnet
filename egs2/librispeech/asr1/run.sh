@@ -7,10 +7,10 @@ set -o pipefail
 
 train_set="train_clean_100" # "train_960"
 valid_set="dev_clean" # "dev"
-test_sets="dev_clean" # "test_clean test_other dev_clean dev_other"
+test_sets="test_clean" # "test_clean test_other dev_clean dev_other"
 
 asr_config=conf/train_asr_amin_transformer.yaml
-lm_config=conf/tuning/train_lm_transformer2.yaml
+lm_config=conf/tuning/train_lm_adam.yaml
 inference_config=conf/decode_asr.yaml
 
 ./asr.sh \
@@ -25,6 +25,5 @@ inference_config=conf/decode_asr.yaml
     --train_set "${train_set}" \
     --valid_set "${valid_set}" \
     --test_sets "${test_sets}" \
-    --use_lm "false" \
+    --lm_train_text "data/${train_set}/text data/local/other_text/text" \
     --bpe_train_text "data/${train_set}/text" "$@"
-    # --lm_train_text "data/${train_set}/text data/local/other_text/text" \

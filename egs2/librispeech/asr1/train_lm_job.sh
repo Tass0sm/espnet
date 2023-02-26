@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=train_model
+#SBATCH --job-name=train_lm_job
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1 --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
-#SBATCH --gpus-per-node=2
+#SBATCH --gpus-per-node=4
 #SBATCH --account=pas2400
 #SBATCH --mail-type=ALL
 
@@ -18,8 +18,4 @@ set -x
 
 source path.sh
 
-# 6 is done
-# --num_nodes 4 \
-/usr/bin/time ./run.sh --stage 7 --stop-stage 12 \
-              --ngpu 2 \
-              --asr_config conf/train_asr_transformer.yaml
+/usr/bin/time ./run.sh --stage 6 --stop-stage 9

@@ -32,6 +32,9 @@ decoder_conf:
     positional_dropout_rate: 0.1
     self_attention_dropout_rate: 0.0
     src_attention_dropout_rate: 0.0
+    attention_type: medical-axial
+    attention_with_position: true
+    attention_with_gate: false
 
 model_conf:
     ctc_weight: 0.3

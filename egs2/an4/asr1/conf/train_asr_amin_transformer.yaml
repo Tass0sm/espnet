@@ -1,7 +1,7 @@
 batch_type: folded
 batch_size: 64
 accum_grad: 1
-max_epoch: 202 # 200 not necessary
+max_epoch: 30 # 200 not necessary
 patience: none
 # The initialization method for model parameters
 init: xavier_uniform

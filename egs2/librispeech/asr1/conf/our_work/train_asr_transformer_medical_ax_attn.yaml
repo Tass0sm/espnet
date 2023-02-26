@@ -22,6 +22,9 @@ encoder_conf:
     attention_dropout_rate: 0.0
     input_layer: conv2d
     normalize_before: true
+    attention_type: medical-axial
+    attention_with_position: false
+    attention_with_gate: false
 
 decoder: transformer
 decoder_conf:
