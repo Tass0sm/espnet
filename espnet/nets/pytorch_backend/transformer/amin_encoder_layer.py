@@ -57,14 +57,14 @@ class AminEncoderLayer(nn.Module):
         self.bn1 = LayerNorm((height, width))
 
         if attention_type == "without-position":
-            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False)
-            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True)
+            self.height_block = AxialAttention(self.height, self.height, width=False)
+            self.width_block = AxialAttention(self.width, self.width, width=True)
         elif attention_type == "with-position":
-            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False, with_position=True)
-            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True, with_position=True)
+            self.height_block = AxialAttention(self.height, self.height, width=False, with_position=True)
+            self.width_block = AxialAttention(self.width, self.width, width=True, with_position=True)
         elif attention_type == "with-position-gated":
-            self.height_block = AxialAttention(hidden_channels, hidden_channels, height, groups=groups, width=False, with_position=True, with_gate=True)
-            self.width_block = AxialAttention(hidden_channels, hidden_channels, width, groups=groups, width=True, with_position=True, with_gate=True)
+            self.height_block = AxialAttention(self.height, self.height, width=False, with_position=True, with_gate=True)
+            self.width_block = AxialAttention(self.width, self.width, width=True, with_position=True, with_gate=True)
         else:
             raise NotImplementedError("Bad attention type")
 
@@ -96,6 +96,7 @@ class AminEncoderLayer(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
         out = self.height_block(None, out, None, mask)
+        out = out.transpose(2, 3)
         out = self.width_block(None, out, None, mask)
         out = self.relu(out)
         out = self.conv_up(out) # contract back to normal number of channels

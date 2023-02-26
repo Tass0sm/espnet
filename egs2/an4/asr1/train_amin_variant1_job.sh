@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=an4_train_variant_job
-#SBATCH --time=48:00:00
-#SBATCH --nodes=1 --ntasks-per-node=32
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1 --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=1
 #SBATCH --account=pas2400
 #SBATCH --mail-type=ALL
 

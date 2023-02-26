@@ -123,7 +123,7 @@ class AxialAttention(nn.Module):
         self.groups = groups
         self.group_planes = out_planes // groups
         assert (self.group_planes >= 2)
-        self.kernel_size = out_planes
+        self.kernel_size = 1# out_planes
         self.stride = stride
         self.bias = bias
         self.width = width
@@ -149,10 +149,10 @@ class AxialAttention(nn.Module):
                 self.f_sve = nn.Parameter(torch.tensor(0.1),  requires_grad=False)
                 self.f_sv = nn.Parameter(torch.tensor(1.0),  requires_grad=False)
 
-            self.relative = nn.Parameter(torch.randn(self.group_planes * 2, kernel_size * 2 - 1), requires_grad=True)
-            query_index = torch.arange(kernel_size).unsqueeze(0)
-            key_index = torch.arange(kernel_size).unsqueeze(1)
-            relative_index = key_index - query_index + kernel_size - 1
+            self.relative = nn.Parameter(torch.randn(self.group_planes * 2, self.kernel_size * 2 - 1), requires_grad=True)
+            query_index = torch.arange(self.kernel_size).unsqueeze(0)
+            key_index = torch.arange(self.kernel_size).unsqueeze(1)
+            relative_index = key_index - query_index + self.kernel_size - 1
             self.register_buffer('flatten_index', relative_index.view(-1))
 
         if stride > 1:
@@ -212,6 +212,7 @@ class AxialAttention(nn.Module):
         if self.with_position:
             stacked_similarity = torch.cat([qk, qr, kr], dim=1)
             stacked_similarity = self.bn_similarity(stacked_similarity).view(NT * W, 3, self.groups, C, C).sum(dim=1)
+
             similarity = F.softmax(stacked_similarity, dim=3)
             sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
             sve = torch.einsum('bgij,cij->bgci', similarity, v_embedding)
