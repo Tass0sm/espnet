@@ -18,4 +18,4 @@ set -x
 
 source path.sh
 
-/usr/bin/time ./run.sh --stage 6 --stop-stage 9
+/usr/bin/time ./run.sh --stage 7 --stop-stage 9
