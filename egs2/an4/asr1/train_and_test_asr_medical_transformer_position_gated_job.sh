@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=train_and_test_asr_medical_transformer
+#SBATCH --job-name=train_and_test_asr_medical_transformer_position_gated
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1 --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
@@ -19,4 +19,4 @@ set -x
 source path.sh
 
 /usr/bin/time ./run.sh --stage 11 \
-              --asr_config conf/our_work/train_asr_medical_transformer.yaml
+              --asr_config conf/our_work/train_asr_medical_transformer_position_gated.yaml

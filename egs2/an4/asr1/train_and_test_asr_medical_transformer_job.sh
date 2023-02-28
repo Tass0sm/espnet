@@ -18,5 +18,5 @@ set -x
 
 source path.sh
 
-/usr/bin/time ./run.sh --stage 11 \
+/usr/bin/time ./run.sh --stage 11 --ngpu 2 \
               --asr_config conf/our_work/train_asr_medical_transformer.yaml
