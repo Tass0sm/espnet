@@ -30,6 +30,73 @@ from espnet.nets.pytorch_backend.transformer.embedding import (
 from espnet.nets.pytorch_backend.transformer.encoder import Encoder
 from espnet.nets.pytorch_backend.transformer.mask import subsequent_mask
 
+from espnet2.bin.asr_inference import Speech2Text
+
+speech2text = Speech2Text.from_pretrained(
+    "Shinji Watanabe/librispeech_asr_train_asr_transformer_e18_raw_bpe_sp_valid.acc.best",
+    # Decoding parameters are not included in the model file
+    maxlenratio=0.0,
+    minlenratio=0.0,
+    beam_size=20,
+    ctc_weight=0.3,
+    lm_weight=0.5,
+    penalty=0.0,
+    nbest=1
+)
+
+class TransformerLossWithASR(TransformerLoss):
+    """Loss function module for Transformer with an ASR component."""
+
+    def __init__(self, **kwargs):
+        """Initialize Tactoron2 loss module.
+
+        Args:
+            use_masking (bool): Whether to apply masking
+                for padded part in loss calculation.
+            use_weighted_masking (bool):
+                Whether to apply weighted masking in loss calculation.
+            bce_pos_weight (float): Weight of positive sample of stop token.
+
+        """
+        super(TransformerLossWithASR, self).__init__(**kwargs)
+
+        self.asr_criterion = torch.nn.L1Loss()
+
+    def forward(self, after_outs, before_outs, logits, ys, labels, olens, text, text_lengths):
+        """Calculate forward propagation.
+
+        Args:
+            after_outs (Tensor): Batch of outputs after postnets (B, Lmax, odim).
+            before_outs (Tensor): Batch of outputs before postnets (B, Lmax, odim).
+            logits (Tensor): Batch of stop logits (B, Lmax).
+            ys (Tensor): Batch of padded target features (B, Lmax, odim).
+            labels (LongTensor): Batch of the sequences of stop token labels (B, Lmax).
+            olens (LongTensor): Batch of the lengths of each target (B,).
+            text (Tensor): Batch of padded character ids (B, Tmax).
+            text_lengths (LongTensor): Batch of lengths of each input batch (B,).
+
+        Returns:
+            Tensor: L1 loss value.
+            Tensor: Mean square error loss value.
+            Tensor: Binary cross entropy loss value.
+            Tensor: Loss between input text and recognized text.
+
+        """
+        l1_loss, mse_loss, bce_loss = super(TransformerLossWithASR, self).forward(
+            after_outs,
+            before_outs,
+            logits,
+            ys,
+            labels,
+            olens
+        )
+
+        breakpoint()
+        # asr(after_outs) -> text' (a tensor of character ids with shape (B, Tmax)
+        # asr_loss = loss(text', text)
+        asr_loss = 0.0
+
+        return l1_loss, mse_loss, bce_loss, asr_loss
 
 class Transformer(AbsTTS):
     """Transformer-TTS module.
@@ -360,7 +427,7 @@ class Transformer(AbsTTS):
         )
 
         # define loss function
-        self.criterion = TransformerLoss(
+        self.criterion = TransformerLossWithASR(
             use_masking=use_masking,
             use_weighted_masking=use_weighted_masking,
             bce_pos_weight=bce_pos_weight,
@@ -460,9 +527,11 @@ class Transformer(AbsTTS):
                 labels, 1, (olens - 1).unsqueeze(1), 1.0
             )  # see #3388
 
+        print("HELLO")
+
         # calculate loss values
-        l1_loss, l2_loss, bce_loss = self.criterion(
-            after_outs, before_outs, logits, ys, labels, olens
+        l1_loss, l2_loss, bce_loss, asr_loss = self.criterion(
+            after_outs, before_outs, logits, ys, labels, olens, text, text_lengths
         )
         if self.loss_type == "L1":
             loss = l1_loss + bce_loss
@@ -470,6 +539,10 @@ class Transformer(AbsTTS):
             loss = l2_loss + bce_loss
         elif self.loss_type == "L1+L2":
             loss = l1_loss + l2_loss + bce_loss
+        elif self.loss_type == "L1+L2+ASR":
+            loss = l1_loss + l2_loss + bce_loss + asr_loss
+        elif self.loss_type == "ASR":
+            loss = asr_loss
         else:
             raise ValueError("unknown --loss-type " + self.loss_type)
 
