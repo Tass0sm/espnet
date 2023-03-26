@@ -3,15 +3,18 @@
 
 """Transformer-TTS related modules."""
 
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple, Union
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+from packaging.version import parse as V
 from typeguard import check_argument_types
 
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.torch_utils.initialize import initialize
 from espnet2.tts.abs_tts import AbsTTS
+from espnet2.tts.utils import ParallelWaveGANPretrainedVocoder
 from espnet2.tts.gst.style_encoder import StyleEncoder
 from espnet.nets.pytorch_backend.e2e_tts_transformer import (
     GuidedMultiHeadAttentionLoss,
@@ -43,6 +46,75 @@ speech2text = Speech2Text.from_pretrained(
     penalty=0.0,
     nbest=1
 )
+
+vocoder_tag = "parallel_wavegan/ljspeech_melgan.v1"
+vocoder_file = None
+vocoder_config = None
+
+if vocoder_tag is not None:
+    if vocoder_tag.startswith("parallel_wavegan/"):
+        try:
+            from parallel_wavegan.utils import download_pretrained_model
+
+        except ImportError:
+            logging.error(
+                "`parallel_wavegan` is not installed. "
+                "Please install via `pip install -U parallel_wavegan`."
+            )
+            raise
+
+        from parallel_wavegan import __version__
+
+        # NOTE(kan-bayashi): Filelock download is supported from 0.5.2
+        assert V(__version__) > V("0.5.1"), (
+            "Please install the latest parallel_wavegan "
+            "via `pip install -U parallel_wavegan`."
+        )
+        vocoder_tag = vocoder_tag.replace("parallel_wavegan/", "")
+        vocoder_file = download_pretrained_model(vocoder_tag)
+        vocoder_config = Path(vocoder_file).parent / "config.yml"
+    else:
+        raise ValueError(f"{vocoder_tag} is unsupported format.")
+
+def build_vocoder_from_file(
+    vocoder_config_file: Union[Path, str] = None,
+    vocoder_file: Union[Path, str] = None,
+    # model: Optional[ESPnetTTSModel] = None,
+    device: str = "cpu",
+):
+    # Build vocoder
+    if vocoder_file is None:
+        # If vocoder file is not provided, use griffin-lim as a vocoder
+        vocoder_conf = {}
+        if vocoder_config_file is not None:
+            vocoder_config_file = Path(vocoder_config_file)
+            with vocoder_config_file.open("r", encoding="utf-8") as f:
+                vocoder_conf = yaml.safe_load(f)
+        # if model.feats_extract is not None:
+        #     vocoder_conf.update(model.feats_extract.get_parameters())
+        if (
+            "n_fft" in vocoder_conf
+            and "n_shift" in vocoder_conf
+            and "fs" in vocoder_conf
+        ):
+            return Spectrogram2Waveform(**vocoder_conf)
+        else:
+            logging.warning("Vocoder is not available. Skipped its building.")
+            return None
+
+    elif str(vocoder_file).endswith(".pkl"):
+        # If the extension is ".pkl", the model is trained with parallel_wavegan
+        vocoder = ParallelWaveGANPretrainedVocoder(
+            vocoder_file, vocoder_config_file
+        )
+        return vocoder.to(device)
+
+    else:
+        raise ValueError(f"{vocoder_file} is not supported format.")
+
+vocoder = build_vocoder_from_file(
+    vocoder_config, vocoder_file, "cpu"
+) # model is None so using Griffin-Lim may not work.
 
 class TransformerLossWithASR(TransformerLoss):
     """Loss function module for Transformer with an ASR component."""
