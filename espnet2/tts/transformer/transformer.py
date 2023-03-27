@@ -6,11 +6,15 @@
 from typing import Dict, Optional, Sequence, Tuple, Union
 from pathlib import Path
 
+import soundfile
+
 import torch
 import torch.nn.functional as F
 from packaging.version import parse as V
 from typeguard import check_argument_types
 
+from espnet2.layers.abs_normalize import AbsNormalize
+from espnet2.layers.inversible_interface import InversibleInterface
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.torch_utils.initialize import initialize
 from espnet2.tts.abs_tts import AbsTTS
@@ -112,27 +116,26 @@ def build_vocoder_from_file(
     else:
         raise ValueError(f"{vocoder_file} is not supported format.")
 
-vocoder = build_vocoder_from_file(
+vocoder_helper = build_vocoder_from_file(
     vocoder_config, vocoder_file, "cpu"
 ) # model is None so using Griffin-Lim may not work.
+
+normalize_helper = None
 
 class TransformerLossWithASR(TransformerLoss):
     """Loss function module for Transformer with an ASR component."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, normalize=None, **kwargs):
         """Initialize Tactoron2 loss module.
 
         Args:
-            use_masking (bool): Whether to apply masking
-                for padded part in loss calculation.
-            use_weighted_masking (bool):
-                Whether to apply weighted masking in loss calculation.
-            bce_pos_weight (float): Weight of positive sample of stop token.
+            normalize: The normalization layer from ESPnetTTSModel
+            Normal Tacotron2Loss / TransformerLoss Arguments
 
         """
+        global normalize_helper
         super(TransformerLossWithASR, self).__init__(**kwargs)
-
-        self.asr_criterion = torch.nn.L1Loss()
+        normalize_helper = normalize
 
     def forward(self, after_outs, before_outs, logits, ys, labels, olens, text, text_lengths):
         """Calculate forward propagation.
@@ -154,6 +157,8 @@ class TransformerLossWithASR(TransformerLoss):
             Tensor: Loss between input text and recognized text.
 
         """
+        global normalize_helper
+
         l1_loss, mse_loss, bce_loss = super(TransformerLossWithASR, self).forward(
             after_outs,
             before_outs,
@@ -163,7 +168,18 @@ class TransformerLossWithASR(TransformerLoss):
             olens
         )
 
+        ys_denorm = ys
+        if normalize_helper is not None:
+            # NOTE: normalize.inverse is in-place operation
+            ys_denorm = normalize_helper.inverse(
+                ys.clone()[None]
+            )[0][0]
+
+        mels = ys_denorm[0, :, :]
+        wav = vocoder_helper(mels)
+        soundfile.write("wav_from_ys.wav", wav.numpy(), 22050, "PCM_16")
         breakpoint()
+
         # asr(after_outs) -> text' (a tensor of character ids with shape (B, Tmax)
         # asr_loss = loss(text', text)
         asr_loss = 0.0
@@ -249,6 +265,7 @@ class Transformer(AbsTTS):
         modules_applied_guided_attn: Sequence[str] = ("encoder-decoder"),
         guided_attn_loss_sigma: float = 0.4,
         guided_attn_loss_lambda: float = 1.0,
+        normalize: Optional[AbsNormalize and InversibleInterface] = None
     ):
         """Initialize Transformer module.
 
@@ -503,6 +520,7 @@ class Transformer(AbsTTS):
             use_masking=use_masking,
             use_weighted_masking=use_weighted_masking,
             bce_pos_weight=bce_pos_weight,
+            normalize=normalize
         )
         if self.use_guided_attn_loss:
             self.attn_criterion = GuidedMultiHeadAttentionLoss(

@@ -314,7 +314,7 @@ class TTSTask(AbsTask):
 
         # 3. TTS
         tts_class = tts_choices.get_class(args.tts)
-        tts = tts_class(idim=vocab_size, odim=odim, **args.tts_conf)
+        tts = tts_class(idim=vocab_size, odim=odim, **args.tts_conf, normalize=normalize)
 
         # 4. Extra components
         pitch_extract = None
