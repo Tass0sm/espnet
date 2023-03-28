@@ -14,7 +14,7 @@ module load cuda/10.2.89
 module load nccl/2.11.4
 module load python
 module spider cuda
-conda activate /home/karimimonsefi.1/espnet/tools/venv/envs/espnet
+conda activate espnet_env
 
 set -x
 
