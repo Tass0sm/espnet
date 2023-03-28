@@ -18,4 +18,4 @@ set -x
 
 source path.sh
 
-./run.sh --ngpu 1 --nj 16 --stage 0 --stop-stage 4
+./run.sh --ngpu 0 --nj 16 --stage 0 --stop-stage 4
