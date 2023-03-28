@@ -74,6 +74,7 @@ if vocoder_tag is not None:
     else:
         raise ValueError(f"{vocoder_tag} is unsupported format.")
 
+
 def build_vocoder_from_file(
     vocoder_config_file: Union[Path, str] = None,
     vocoder_file: Union[Path, str] = None,
@@ -127,11 +128,17 @@ class TextCosineEmbeddingLoss(nn.Module):
         loss_total = 0.0
         for i in range(b):
             predicted_tokens = predicted_text[i].lower().split()
-            predicted_emb = torch.stack([self.embedding_model[token] for token in predicted_tokens])
-
             actual_tokens = actual_text[i].lower().split()
-            actual_emb = torch.stack([self.embedding_model[token] for token in actual_tokens])
 
+            for j in range(min(len(predicted_tokens), len(actual_tokens)),
+                           max(len(predicted_tokens), len(actual_tokens))):
+                if j < len(predicted_tokens):
+                    actual_tokens.append('A')
+                elif j < len(actual_tokens):
+                    predicted_tokens.append('A')
+
+            actual_emb = torch.stack([self.embedding_model[token] for token in actual_tokens])
+            predicted_emb = torch.stack([self.embedding_model[token] for token in predicted_tokens])
             # similarity = F.cosine_similarity(predicted_emb, actual_emb, dim=1)
 
             loss = F.cosine_embedding_loss(predicted_emb, actual_emb, torch.tensor([1.0]), margin=self.margin,
