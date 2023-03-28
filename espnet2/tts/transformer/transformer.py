@@ -8,6 +8,7 @@ from pathlib import Path
 
 import soundfile
 import Levenshtein
+import logging
 
 import numpy as np
 import torch
@@ -226,7 +227,7 @@ v
 
             # asr_loss = loss(text', text)
             original_text_arr = self.decode(encoded)
-            ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text)])
+            ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text_arr)])
             asr_loss_1 = 1 - ratios.mean()
 
             asr_loss_2 = self.text_loss(text_arr, original_text_arr)
