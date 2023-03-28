@@ -7,7 +7,9 @@ from typing import Dict, Optional, Sequence, Tuple, Union
 from pathlib import Path
 
 import soundfile
+import Levenshtein
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from packaging.version import parse as V
@@ -38,18 +40,6 @@ from espnet.nets.pytorch_backend.transformer.encoder import Encoder
 from espnet.nets.pytorch_backend.transformer.mask import subsequent_mask
 
 from espnet2.bin.asr_inference import Speech2Text
-
-speech2text = Speech2Text.from_pretrained(
-    "Shinji Watanabe/librispeech_asr_train_asr_transformer_e18_raw_bpe_sp_valid.acc.best",
-    # Decoding parameters are not included in the model file
-    maxlenratio=0.0,
-    minlenratio=0.0,
-    beam_size=20,
-    ctc_weight=0.3,
-    lm_weight=0.5,
-    penalty=0.0,
-    nbest=1
-)
 
 vocoder_tag = "parallel_wavegan/ljspeech_melgan.v1"
 vocoder_file = None
@@ -116,12 +106,6 @@ def build_vocoder_from_file(
     else:
         raise ValueError(f"{vocoder_file} is not supported format.")
 
-vocoder_helper = build_vocoder_from_file(
-    vocoder_config, vocoder_file, "cpu"
-) # model is None so using Griffin-Lim may not work.
-
-normalize_helper = None
-
 class TransformerLossWithASR(TransformerLoss):
     """Loss function module for Transformer with an ASR component."""
 
@@ -133,13 +117,38 @@ class TransformerLossWithASR(TransformerLoss):
             Normal Tacotron2Loss / TransformerLoss Arguments
 
         """
-        global normalize_helper
         super(TransformerLossWithASR, self).__init__(**kwargs)
-        normalize_helper = normalize
 
-    def forward(self, after_outs, before_outs, logits, ys, labels, olens, text, text_lengths):
+        # using Griffin-Lim may not work.
+        vocoder = build_vocoder_from_file(
+            vocoder_config, vocoder_file, "cuda" if torch.cuda.is_available() else "cpu" # assuming we want to use it if available
+        )
+
+        speech2text = Speech2Text.from_pretrained(
+            "Shinji Watanabe/librispeech_asr_train_asr_transformer_e18_raw_bpe_sp_valid.acc.best",
+            # Decoding parameters are not included in the model file
+            maxlenratio=0.0,
+            minlenratio=0.0,
+            beam_size=20,
+            ctc_weight=0.3,
+            lm_weight=0.5,
+            penalty=0.0,
+            nbest=1
+        )
+
+        self.decode = np.vectorize(lambda v: bytes(v.astype(np.uint8)).decode(), signature="(l)->()")
+
+        # put them in this dict so that they aren't considered in the pytorch
+        # state_dict
+        self.helper_modules = {
+            "vocoder": np.vectorize(vocoder, signature="(l,d)->(n)"),
+            "normalize": normalize,
+            "asr": np.vectorize(speech2text, signature="(w)->()")
+        }
+
+    def forward(self, after_outs, before_outs, logits, ys, labels, olens, encoded, encoded_lengths):
         """Calculate forward propagation.
-
+v
         Args:
             after_outs (Tensor): Batch of outputs after postnets (B, Lmax, odim).
             before_outs (Tensor): Batch of outputs before postnets (B, Lmax, odim).
@@ -147,8 +156,8 @@ class TransformerLossWithASR(TransformerLoss):
             ys (Tensor): Batch of padded target features (B, Lmax, odim).
             labels (LongTensor): Batch of the sequences of stop token labels (B, Lmax).
             olens (LongTensor): Batch of the lengths of each target (B,).
-            text (Tensor): Batch of padded character ids (B, Tmax).
-            text_lengths (LongTensor): Batch of lengths of each input batch (B,).
+            encoded (Tensor): Batch of padded and encoded characters (B, Tmax).
+            encoded_lengths (LongTensor): Lengths of each item in the batch (B,).
 
         Returns:
             Tensor: L1 loss value.
@@ -157,8 +166,6 @@ class TransformerLossWithASR(TransformerLoss):
             Tensor: Loss between input text and recognized text.
 
         """
-        global normalize_helper
-
         l1_loss, mse_loss, bce_loss = super(TransformerLossWithASR, self).forward(
             after_outs,
             before_outs,
@@ -168,21 +175,22 @@ class TransformerLossWithASR(TransformerLoss):
             olens
         )
 
-        ys_denorm = ys
-        if normalize_helper is not None:
+        mels = after_outs
+        if self.helper_modules["normalize"] is not None:
             # NOTE: normalize.inverse is in-place operation
-            ys_denorm = normalize_helper.inverse(
-                ys.clone()[None]
+            mels = self.helper_modules["normalize"].inverse(
+                after_outs.clone()[None]
             )[0][0]
 
-        mels = ys_denorm[0, :, :]
-        wav = vocoder_helper(mels)
-        soundfile.write("wav_from_ys.wav", wav.numpy(), 22050, "PCM_16")
-        breakpoint()
+        # asr(after_outs) -> text'
+        wavs = self.helper_modules["vocoder"](mels_denorm)
+        nbests_arr = self.helper_modules["asr"](wavs)
+        text_arr = list(map(lambda x: x[0][0], nbests_arr))
 
-        # asr(after_outs) -> text' (a tensor of character ids with shape (B, Tmax)
         # asr_loss = loss(text', text)
-        asr_loss = 0.0
+        original_text = self.decode(encoded)
+        ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text)])
+        asr_loss = 1 - ratios.mean()
 
         return l1_loss, mse_loss, bce_loss, asr_loss
 
@@ -520,7 +528,7 @@ class Transformer(AbsTTS):
             use_masking=use_masking,
             use_weighted_masking=use_weighted_masking,
             bce_pos_weight=bce_pos_weight,
-            normalize=normalize
+            normalize=normalize,
         )
         if self.use_guided_attn_loss:
             self.attn_criterion = GuidedMultiHeadAttentionLoss(
@@ -547,6 +555,8 @@ class Transformer(AbsTTS):
 
     def forward(
         self,
+        encoded: torch.Tensor,
+        encoded_lengths: torch.Tensor,
         text: torch.Tensor,
         text_lengths: torch.Tensor,
         feats: torch.Tensor,
@@ -574,6 +584,7 @@ class Transformer(AbsTTS):
             Tensor: Weight value if not joint training else model outputs.
 
         """
+        encoded = encoded[:, : encoded_lengths.max()]  # for data-parallel
         text = text[:, : text_lengths.max()]  # for data-parallel
         feats = feats[:, : feats_lengths.max()]  # for data-parallel
         batch_size = text.size(0)
@@ -617,11 +628,9 @@ class Transformer(AbsTTS):
                 labels, 1, (olens - 1).unsqueeze(1), 1.0
             )  # see #3388
 
-        print("HELLO")
-
         # calculate loss values
         l1_loss, l2_loss, bce_loss, asr_loss = self.criterion(
-            after_outs, before_outs, logits, ys, labels, olens, text, text_lengths
+            after_outs, before_outs, logits, ys, labels, olens, encoded, encoded_lengths
         )
         if self.loss_type == "L1":
             loss = l1_loss + bce_loss
@@ -640,6 +649,7 @@ class Transformer(AbsTTS):
             l1_loss=l1_loss.item(),
             l2_loss=l2_loss.item(),
             bce_loss=bce_loss.item(),
+            asr_loss=asr_loss.item()
         )
 
         # calculate guided attention loss

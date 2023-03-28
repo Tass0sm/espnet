@@ -51,6 +51,8 @@ class ESPnetTTSModel(AbsESPnetModel):
 
     def forward(
         self,
+        encoded: torch.Tensor,
+        encoded_lengths: torch.Tensor,
         text: torch.Tensor,
         text_lengths: torch.Tensor,
         speech: torch.Tensor,
@@ -126,6 +128,8 @@ class ESPnetTTSModel(AbsESPnetModel):
 
         # Make batch for tts inputs
         batch = dict(
+            encoded=encoded,
+            encoded_lengths=encoded_lengths,
             text=text,
             text_lengths=text_lengths,
             feats=feats,

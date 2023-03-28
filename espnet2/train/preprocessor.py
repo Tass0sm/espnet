@@ -347,6 +347,7 @@ class CommonPreprocessor(AbsPreprocessor):
     ) -> Dict[str, np.ndarray]:
         assert check_argument_types()
 
+        data["encoded"] = np.frombuffer(data[self.text_name].encode(), dtype=np.uint8).astype("float")
         data = self._speech_process(data)
         data = self._text_process(data)
         return data
