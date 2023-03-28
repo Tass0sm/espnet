@@ -9,7 +9,7 @@
 
 cd espnet
 module spider cuda
-conda activate conda activate speech_project_env
+conda activate speech_project_env
 
 set -x
 
