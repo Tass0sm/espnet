@@ -155,7 +155,7 @@ class TransformerLossWithASR(TransformerLoss):
 
         # using Griffin-Lim may not work.
         vocoder = build_vocoder_from_file(
-            vocoder_config, vocoder_file, "cuda" if torch.cuda.is_available() else "cpu" # assuming we want to use it if available
+            vocoder_config, vocoder_file, "cpu"
         )
 
         speech2text = Speech2Text.from_pretrained(
@@ -211,30 +211,27 @@ v
             olens
         )
 
-        mels = after_outs
-        if self.helper_modules["normalize"] is not None:
-            # NOTE: normalize.inverse is in-place operation
-            mels = self.helper_modules["normalize"].inverse(
-                after_outs.clone()[None]
-            )[0][0]
+        with torch.no_grad():
+            mels = after_outs
+            if self.helper_modules["normalize"] is not None:
+                # NOTE: normalize.inverse is in-place operation
+                mels = self.helper_modules["normalize"].inverse(
+                    after_outs.clone()[None]
+                )[0][0]
 
-        # asr(after_outs) -> text'
-        wavs = self.helper_modules["vocoder"](mels_denorm)
-        nbests_arr = self.helper_modules["asr"](wavs)
-        text_arr = list(map(lambda x: x[0][0], nbests_arr))
+            # asr(after_outs) -> text'
+            wavs = self.helper_modules["vocoder"](mels.cpu().numpy())
+            nbests_arr = self.helper_modules["asr"](wavs)
+            text_arr = list(map(lambda x: x[0][0], nbests_arr))
 
-        # asr_loss = loss(text', text)
-        original_text = self.decode(encoded)
-        ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text)])
-        asr_loss_1 = 1 - ratios.mean()
+            # asr_loss = loss(text', text)
+            original_text_arr = self.decode(encoded)
+            ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text)])
+            asr_loss_1 = 1 - ratios.mean()
 
-        nbests = self.helper_modules["asr"](wavs)
+            asr_loss_2 = self.text_loss(text_arr, original_text_arr)
 
-        text, *_ = nbests[0]
-        asr_loss_2 = self.text_loss(text, original_text)
-
-        return l1_loss, mse_loss, bce_loss, asr_loss_1 + asr_loss_2
-
+            return l1_loss, mse_loss, bce_loss, asr_loss_1, asr_loss_2
 
 class Transformer(AbsTTS):
     """Transformer-TTS module.

@@ -416,17 +416,17 @@ class Speech2Text:
 
     def _decode_single_sample(self, enc: torch.Tensor):
         if self.beam_search_transducer:
-            logging.info("encoder output length: " + str(enc.shape[0]))
+            # logging.info("encoder output length: " + str(enc.shape[0]))
             nbest_hyps = self.beam_search_transducer(enc)
 
             best = nbest_hyps[0]
-            logging.info(f"total log probability: {best.score:.2f}")
-            logging.info(
-                f"normalized log probability: {best.score / len(best.yseq):.2f}"
-            )
-            logging.info(
-                "best hypo: " + "".join(self.converter.ids2tokens(best.yseq[1:])) + "\n"
-            )
+            # logging.info(f"total log probability: {best.score:.2f}")
+            # logging.info(
+            #     f"normalized log probability: {best.score / len(best.yseq):.2f}"
+            # )
+            # logging.info(
+            #     "best hypo: " + "".join(self.converter.ids2tokens(best.yseq[1:])) + "\n"
+            # )
         elif self.hugging_face_model:
             decoder_start_token_id = (
                 self.hugging_face_model.config.decoder_start_token_id
@@ -441,11 +441,11 @@ class Speech2Text:
                 max_length=self.hugging_face_decoder_max_length,
             )
             nbest_hyps = [Hypothesis(yseq=yseq[0])]
-            logging.info(
-                "best hypo: "
-                + "".join(self.converter.ids2tokens(nbest_hyps[0].yseq[1:]))
-                + "\n"
-            )
+            # logging.info(
+            #     "best hypo: "
+            #     + "".join(self.converter.ids2tokens(nbest_hyps[0].yseq[1:]))
+            #     + "\n"
+            # )
         else:
             if hasattr(self.beam_search.nn_dict, "decoder"):
                 if isinstance(self.beam_search.nn_dict.decoder, S4Decoder):
