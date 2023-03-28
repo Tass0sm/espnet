@@ -9,7 +9,7 @@
 
 cd espnet
 module spider cuda
-conda activate speech_project_env_1
+conda activate /home/karimimonsefi.1/espnet/tools/speech_project_env_1/envs/speech_project_env_1
 
 set -x
 
