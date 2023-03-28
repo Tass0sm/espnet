@@ -11,9 +11,12 @@ import Levenshtein
 
 import numpy as np
 import torch
+import torchtext
+import torch.nn as nn
 import torch.nn.functional as F
 from packaging.version import parse as V
 from typeguard import check_argument_types
+
 
 from espnet2.layers.abs_normalize import AbsNormalize
 from espnet2.layers.inversible_interface import InversibleInterface
@@ -106,6 +109,37 @@ def build_vocoder_from_file(
     else:
         raise ValueError(f"{vocoder_file} is not supported format.")
 
+
+class TextCosineEmbeddingLoss(nn.Module):
+    def __init__(self, margin=0.0, reduction="mean"):
+        super().__init__()
+        self.model_name = '840B'  # 840B, 42B, twitter.27B, 6B
+        self.embedding_model = torchtext.vocab.GloVe(name=self.model_name)
+        self.margin = margin
+        self.reduction = reduction
+
+    def forward(self, predicted_text, actual_text):
+        if type(predicted_text) != list:
+            predicted_text = [predicted_text]
+            actual_text = [actual_text]
+        b = len(predicted_text)
+        loss_total = 0.0
+        for i in range(b):
+            predicted_tokens = predicted_text[i].lower().split()
+            predicted_emb = torch.stack([self.embedding_model[token] for token in predicted_tokens])
+
+            actual_tokens = actual_text[i].lower().split()
+            actual_emb = torch.stack([self.embedding_model[token] for token in actual_tokens])
+
+            # similarity = F.cosine_similarity(predicted_emb, actual_emb, dim=1)
+
+            loss = F.cosine_embedding_loss(predicted_emb, actual_emb, torch.tensor([1.0]), margin=self.margin,
+                                           reduction=self.reduction)
+            loss_total += loss
+
+        return loss_total / float(b)
+
+
 class TransformerLossWithASR(TransformerLoss):
     """Loss function module for Transformer with an ASR component."""
 
@@ -137,6 +171,8 @@ class TransformerLossWithASR(TransformerLoss):
         )
 
         self.decode = np.vectorize(lambda v: bytes(v.astype(np.uint8)).decode(), signature="(l)->()")
+
+        self.text_loss = TextCosineEmbeddingLoss(margin=0.0, reduction="mean")
 
         # put them in this dict so that they aren't considered in the pytorch
         # state_dict
@@ -190,9 +226,15 @@ v
         # asr_loss = loss(text', text)
         original_text = self.decode(encoded)
         ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text)])
-        asr_loss = 1 - ratios.mean()
+        asr_loss_1 = 1 - ratios.mean()
 
-        return l1_loss, mse_loss, bce_loss, asr_loss
+        nbests = self.helper_modules["asr"](wavs)
+
+        text, *_ = nbests[0]
+        asr_loss_2 = self.text_loss(text, original_text)
+
+        return l1_loss, mse_loss, bce_loss, asr_loss_1 + asr_loss_2
+
 
 class Transformer(AbsTTS):
     """Transformer-TTS module.
