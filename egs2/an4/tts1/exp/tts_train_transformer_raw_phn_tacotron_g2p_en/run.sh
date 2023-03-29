@@ -1,0 +1,1 @@
+./tts.sh --lang en --train_set train_nodev --valid_set train_dev --test_sets 'train_dev test' --srctexts data/train_nodev/text --ngpu 1 --nj 16 --stage 6 --stop-stage 6 --train_config conf/train_transformer.yaml --stage 6 "$@"; exit $?

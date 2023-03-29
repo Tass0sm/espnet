@@ -1,0 +1,23 @@
+# python3 -m espnet2.bin.tts_train --use_preprocessor true --token_type phn --token_list dump/token_list/phn_tacotron_g2p_en/tokens.txt --non_linguistic_symbols none --cleaner tacotron --g2p g2p_en --normalize global_mvn --resume true --fold_length 150 --fold_length 204800 --output_dir exp/tts_train_transformer_raw_phn_tacotron_g2p_en --config conf/train_transformer.yaml --feats_extract fbank --feats_extract_conf n_fft=1024 --feats_extract_conf hop_length=256 --feats_extract_conf win_length=null --feats_extract_conf fs=16000 --feats_extract_conf fmin=80 --feats_extract_conf fmax=7600 --feats_extract_conf n_mels=80 --train_data_path_and_name_and_type dump/raw/train_nodev/text,text,text --train_data_path_and_name_and_type dump/raw/train_nodev/wav.scp,speech,sound --train_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/train/text_shape.phn --train_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/train/speech_shape --valid_data_path_and_name_and_type dump/raw/train_dev/text,text,text --valid_data_path_and_name_and_type dump/raw/train_dev/wav.scp,speech,sound --valid_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/valid/text_shape.phn --valid_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/valid/speech_shape --normalize_conf stats_file=exp/tts_stats_raw_phn_tacotron_g2p_en/train/feats_stats.npz --ngpu 1 --multiprocessing_distributed True 
+# Started at Tue Mar 28 22:34:54 CDT 2023
+#
+Traceback (most recent call last):
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/karimimonsefi.1/espnet/espnet2/bin/tts_train.py", line 2, in <module>
+    from espnet2.tasks.tts import TTSTask
+  File "/home/karimimonsefi.1/espnet/espnet2/tasks/tts.py", line 14, in <module>
+    from espnet2.gan_tts.joint import JointText2Wav
+  File "/home/karimimonsefi.1/espnet/espnet2/gan_tts/joint/__init__.py", line 1, in <module>
+    from espnet2.gan_tts.joint.joint_text2wav import JointText2Wav  # NOQA
+  File "/home/karimimonsefi.1/espnet/espnet2/gan_tts/joint/joint_text2wav.py", line 38, in <module>
+    from espnet2.tts.transformer import Transformer
+  File "/home/karimimonsefi.1/espnet/espnet2/tts/transformer/__init__.py", line 1, in <module>
+    from espnet2.tts.transformer.transformer import Transformer  # NOQA
+  File "/home/karimimonsefi.1/espnet/espnet2/tts/transformer/transformer.py", line 15, in <module>
+    import torchtext
+ModuleNotFoundError: No module named 'torchtext'
+# Accounting: time=7 threads=1
+# Ended (code 1) at Tue Mar 28 22:35:01 CDT 2023, elapsed time 7 seconds
