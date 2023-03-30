@@ -168,8 +168,8 @@ class TransformerLossWithASR(TransformerLoss):
         # d.download_and_unpack("kamo-naoyuki/mini_an4_asr_train_raw_bpe_valid.acc.best")
 
         speech2text = Speech2Text.from_pretrained(
-            "kamo-naoyuki/mini_an4_asr_train_raw_bpe_valid.acc.best",
-            # "Shinji Watanabe/librispeech_asr_train_asr_transformer_e18_raw_bpe_sp_valid.acc.best",
+            # "kamo-naoyuki/mini_an4_asr_train_raw_bpe_valid.acc.best",
+            "Shinji Watanabe/librispeech_asr_train_asr_transformer_e18_raw_bpe_sp_valid.acc.best",
             # Decoding parameters are not included in the model file
             maxlenratio=0.0,
             minlenratio=0.0,
