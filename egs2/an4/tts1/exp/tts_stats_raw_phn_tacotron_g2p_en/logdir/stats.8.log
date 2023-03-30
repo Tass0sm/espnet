@@ -1,0 +1,270 @@
+# python3 -m espnet2.bin.tts_train --collect_stats true --write_collected_feats false --use_preprocessor true --token_type phn --token_list dump/token_list/phn_tacotron_g2p_en/tokens.txt --non_linguistic_symbols none --cleaner tacotron --g2p g2p_en --normalize none --pitch_normalize none --energy_normalize none --train_data_path_and_name_and_type dump/raw/train_nodev/text,text,text --train_data_path_and_name_and_type dump/raw/train_nodev/wav.scp,speech,sound --valid_data_path_and_name_and_type dump/raw/train_dev/text,text,text --valid_data_path_and_name_and_type dump/raw/train_dev/wav.scp,speech,sound --train_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/train.8.scp --valid_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/valid.8.scp --output_dir exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/stats.8 --config conf/train_transformer.yaml --feats_extract fbank --feats_extract_conf n_fft=1024 --feats_extract_conf hop_length=256 --feats_extract_conf win_length=null --feats_extract_conf fs=16000 --feats_extract_conf fmin=80 --feats_extract_conf fmax=7600 --feats_extract_conf n_mels=80 --pitch_extract_conf fs=16000 --pitch_extract_conf n_fft=1024 --pitch_extract_conf hop_length=256 --pitch_extract_conf f0max=400 --pitch_extract_conf f0min=80 --energy_extract_conf fs=16000 --energy_extract_conf n_fft=1024 --energy_extract_conf hop_length=256 --energy_extract_conf win_length=null 
+# Started at Thu Mar 30 09:46:53 CDT 2023
+#
+/home/karimimonsefi.1/miniconda3/envs/espnet_env/bin/python3 /home/karimimonsefi.1/espnet/espnet2/bin/tts_train.py --collect_stats true --write_collected_feats false --use_preprocessor true --token_type phn --token_list dump/token_list/phn_tacotron_g2p_en/tokens.txt --non_linguistic_symbols none --cleaner tacotron --g2p g2p_en --normalize none --pitch_normalize none --energy_normalize none --train_data_path_and_name_and_type dump/raw/train_nodev/text,text,text --train_data_path_and_name_and_type dump/raw/train_nodev/wav.scp,speech,sound --valid_data_path_and_name_and_type dump/raw/train_dev/text,text,text --valid_data_path_and_name_and_type dump/raw/train_dev/wav.scp,speech,sound --train_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/train.8.scp --valid_shape_file exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/valid.8.scp --output_dir exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/stats.8 --config conf/train_transformer.yaml --feats_extract fbank --feats_extract_conf n_fft=1024 --feats_extract_conf hop_length=256 --feats_extract_conf win_length=null --feats_extract_conf fs=16000 --feats_extract_conf fmin=80 --feats_extract_conf fmax=7600 --feats_extract_conf n_mels=80 --pitch_extract_conf fs=16000 --pitch_extract_conf n_fft=1024 --pitch_extract_conf hop_length=256 --pitch_extract_conf f0max=400 --pitch_extract_conf f0min=80 --energy_extract_conf fs=16000 --energy_extract_conf n_fft=1024 --energy_extract_conf hop_length=256 --energy_extract_conf win_length=null
+Vocabulary size: 49
+encoder self-attention layer type = self-attention
+decoder self-attention layer type = self-attention
+Successfully registered stats as buffer.
+Vocabulary size: 5000
+Initialize encoder.embed.conv.0.bias to zeros
+Initialize encoder.embed.conv.2.bias to zeros
+Initialize encoder.embed.out.0.bias to zeros
+Initialize encoder.encoders.0.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.0.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.0.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.0.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.0.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.0.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.0.norm1.bias to zeros
+Initialize encoder.encoders.0.norm2.bias to zeros
+Initialize encoder.encoders.1.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.1.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.1.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.1.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.1.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.1.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.1.norm1.bias to zeros
+Initialize encoder.encoders.1.norm2.bias to zeros
+Initialize encoder.encoders.2.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.2.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.2.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.2.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.2.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.2.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.2.norm1.bias to zeros
+Initialize encoder.encoders.2.norm2.bias to zeros
+Initialize encoder.encoders.3.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.3.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.3.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.3.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.3.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.3.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.3.norm1.bias to zeros
+Initialize encoder.encoders.3.norm2.bias to zeros
+Initialize encoder.encoders.4.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.4.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.4.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.4.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.4.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.4.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.4.norm1.bias to zeros
+Initialize encoder.encoders.4.norm2.bias to zeros
+Initialize encoder.encoders.5.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.5.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.5.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.5.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.5.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.5.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.5.norm1.bias to zeros
+Initialize encoder.encoders.5.norm2.bias to zeros
+Initialize encoder.encoders.6.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.6.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.6.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.6.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.6.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.6.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.6.norm1.bias to zeros
+Initialize encoder.encoders.6.norm2.bias to zeros
+Initialize encoder.encoders.7.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.7.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.7.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.7.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.7.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.7.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.7.norm1.bias to zeros
+Initialize encoder.encoders.7.norm2.bias to zeros
+Initialize encoder.encoders.8.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.8.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.8.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.8.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.8.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.8.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.8.norm1.bias to zeros
+Initialize encoder.encoders.8.norm2.bias to zeros
+Initialize encoder.encoders.9.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.9.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.9.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.9.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.9.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.9.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.9.norm1.bias to zeros
+Initialize encoder.encoders.9.norm2.bias to zeros
+Initialize encoder.encoders.10.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.10.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.10.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.10.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.10.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.10.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.10.norm1.bias to zeros
+Initialize encoder.encoders.10.norm2.bias to zeros
+Initialize encoder.encoders.11.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.11.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.11.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.11.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.11.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.11.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.11.norm1.bias to zeros
+Initialize encoder.encoders.11.norm2.bias to zeros
+Initialize encoder.encoders.12.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.12.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.12.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.12.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.12.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.12.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.12.norm1.bias to zeros
+Initialize encoder.encoders.12.norm2.bias to zeros
+Initialize encoder.encoders.13.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.13.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.13.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.13.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.13.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.13.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.13.norm1.bias to zeros
+Initialize encoder.encoders.13.norm2.bias to zeros
+Initialize encoder.encoders.14.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.14.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.14.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.14.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.14.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.14.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.14.norm1.bias to zeros
+Initialize encoder.encoders.14.norm2.bias to zeros
+Initialize encoder.encoders.15.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.15.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.15.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.15.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.15.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.15.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.15.norm1.bias to zeros
+Initialize encoder.encoders.15.norm2.bias to zeros
+Initialize encoder.encoders.16.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.16.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.16.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.16.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.16.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.16.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.16.norm1.bias to zeros
+Initialize encoder.encoders.16.norm2.bias to zeros
+Initialize encoder.encoders.17.self_attn.linear_q.bias to zeros
+Initialize encoder.encoders.17.self_attn.linear_k.bias to zeros
+Initialize encoder.encoders.17.self_attn.linear_v.bias to zeros
+Initialize encoder.encoders.17.self_attn.linear_out.bias to zeros
+Initialize encoder.encoders.17.feed_forward.w_1.bias to zeros
+Initialize encoder.encoders.17.feed_forward.w_2.bias to zeros
+Initialize encoder.encoders.17.norm1.bias to zeros
+Initialize encoder.encoders.17.norm2.bias to zeros
+Initialize encoder.after_norm.bias to zeros
+Initialize decoder.after_norm.bias to zeros
+Initialize decoder.output_layer.bias to zeros
+Initialize decoder.decoders.0.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.0.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.0.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.0.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.0.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.0.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.0.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.0.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.0.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.0.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.0.norm1.bias to zeros
+Initialize decoder.decoders.0.norm2.bias to zeros
+Initialize decoder.decoders.0.norm3.bias to zeros
+Initialize decoder.decoders.1.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.1.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.1.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.1.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.1.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.1.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.1.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.1.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.1.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.1.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.1.norm1.bias to zeros
+Initialize decoder.decoders.1.norm2.bias to zeros
+Initialize decoder.decoders.1.norm3.bias to zeros
+Initialize decoder.decoders.2.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.2.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.2.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.2.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.2.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.2.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.2.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.2.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.2.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.2.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.2.norm1.bias to zeros
+Initialize decoder.decoders.2.norm2.bias to zeros
+Initialize decoder.decoders.2.norm3.bias to zeros
+Initialize decoder.decoders.3.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.3.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.3.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.3.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.3.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.3.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.3.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.3.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.3.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.3.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.3.norm1.bias to zeros
+Initialize decoder.decoders.3.norm2.bias to zeros
+Initialize decoder.decoders.3.norm3.bias to zeros
+Initialize decoder.decoders.4.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.4.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.4.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.4.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.4.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.4.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.4.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.4.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.4.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.4.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.4.norm1.bias to zeros
+Initialize decoder.decoders.4.norm2.bias to zeros
+Initialize decoder.decoders.4.norm3.bias to zeros
+Initialize decoder.decoders.5.self_attn.linear_q.bias to zeros
+Initialize decoder.decoders.5.self_attn.linear_k.bias to zeros
+Initialize decoder.decoders.5.self_attn.linear_v.bias to zeros
+Initialize decoder.decoders.5.self_attn.linear_out.bias to zeros
+Initialize decoder.decoders.5.src_attn.linear_q.bias to zeros
+Initialize decoder.decoders.5.src_attn.linear_k.bias to zeros
+Initialize decoder.decoders.5.src_attn.linear_v.bias to zeros
+Initialize decoder.decoders.5.src_attn.linear_out.bias to zeros
+Initialize decoder.decoders.5.feed_forward.w_1.bias to zeros
+Initialize decoder.decoders.5.feed_forward.w_2.bias to zeros
+Initialize decoder.decoders.5.norm1.bias to zeros
+Initialize decoder.decoders.5.norm2.bias to zeros
+Initialize decoder.decoders.5.norm3.bias to zeros
+Initialize ctc.ctc_lo.bias to zeros
+Traceback (most recent call last):
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/karimimonsefi.1/espnet/espnet2/bin/tts_train.py", line 22, in <module>
+    main()
+  File "/home/karimimonsefi.1/espnet/espnet2/bin/tts_train.py", line 18, in main
+    TTSTask.main(cmd=cmd)
+  File "/home/karimimonsefi.1/espnet/espnet2/tasks/abs_task.py", line 1054, in main
+    cls.main_worker(args)
+  File "/home/karimimonsefi.1/espnet/espnet2/tasks/abs_task.py", line 1164, in main_worker
+    model = cls.build_model(args=args)
+  File "/home/karimimonsefi.1/espnet/espnet2/tasks/tts.py", line 317, in build_model
+    tts = tts_class(idim=vocab_size, odim=odim, **args.tts_conf, normalize=normalize)
+  File "/home/karimimonsefi.1/espnet/espnet2/tts/transformer/transformer.py", line 576, in __init__
+    self.criterion = TransformerLossWithASR(
+  File "/home/karimimonsefi.1/espnet/espnet2/tts/transformer/transformer.py", line 170, in __init__
+    speech2text = Speech2Text.from_pretrained(
+  File "/home/karimimonsefi.1/espnet/espnet2/bin/asr_inference.py", line 515, in from_pretrained
+    return Speech2Text(**kwargs)
+  File "/home/karimimonsefi.1/espnet/espnet2/bin/asr_inference.py", line 113, in __init__
+    asr_model, asr_train_args = task.build_model_from_file(
+  File "/home/karimimonsefi.1/espnet/espnet2/tasks/abs_task.py", line 1878, in build_model_from_file
+    model.load_state_dict(torch.load(model_file, map_location=device))
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/site-packages/torch/serialization.py", line 795, in load
+    return _legacy_load(opened_file, map_location, pickle_module, **pickle_load_args)
+  File "/home/karimimonsefi.1/miniconda3/envs/espnet_env/lib/python3.9/site-packages/torch/serialization.py", line 1020, in _legacy_load
+    typed_storage._storage._set_from_file(
+RuntimeError: unexpected EOF, expected 610961 more bytes. The file might be corrupted.
+# Accounting: time=18 threads=1
+# Ended (code 1) at Thu Mar 30 09:47:11 CDT 2023, elapsed time 18 seconds

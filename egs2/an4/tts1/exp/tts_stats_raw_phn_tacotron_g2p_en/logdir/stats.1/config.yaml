@@ -1,0 +1,211 @@
+config: conf/train_transformer.yaml
+print_config: false
+log_level: INFO
+dry_run: false
+iterator_type: sequence
+output_dir: exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/stats.1
+ngpu: 0
+seed: 0
+num_workers: 1
+num_att_plot: 3
+dist_backend: nccl
+dist_init_method: env://
+dist_world_size: null
+dist_rank: null
+local_rank: null
+dist_master_addr: null
+dist_master_port: null
+dist_launcher: null
+multiprocessing_distributed: false
+unused_parameters: false
+sharded_ddp: false
+cudnn_enabled: true
+cudnn_benchmark: false
+cudnn_deterministic: true
+collect_stats: true
+write_collected_feats: false
+max_epoch: 2
+patience: null
+val_scheduler_criterion:
+- valid
+- loss
+early_stopping_criterion:
+- valid
+- loss
+- min
+best_model_criterion:
+-   - train
+    - loss
+    - min
+-   - valid
+    - loss
+    - min
+-   - train
+    - acc
+    - max
+-   - valid
+    - acc
+    - max
+keep_nbest_models:
+- 10
+nbest_averaging_interval: 0
+grad_clip: 5.0
+grad_clip_type: 2.0
+grad_noise: false
+accum_grad: 1
+no_forward_run: false
+resume: false
+train_dtype: float32
+use_amp: false
+log_interval: 1
+use_matplotlib: true
+use_tensorboard: true
+create_graph_in_tensorboard: false
+use_wandb: false
+wandb_project: null
+wandb_id: null
+wandb_entity: null
+wandb_name: null
+wandb_model_log_interval: -1
+detect_anomaly: false
+pretrain_path: null
+init_param: []
+ignore_init_mismatch: false
+freeze_param: []
+num_iters_per_epoch: 10
+batch_size: 20
+valid_batch_size: null
+batch_bins: 1000000
+valid_batch_bins: null
+train_shape_file:
+- exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/train.1.scp
+valid_shape_file:
+- exp/tts_stats_raw_phn_tacotron_g2p_en/logdir/valid.1.scp
+batch_type: folded
+valid_batch_type: null
+fold_length: []
+sort_in_batch: descending
+sort_batch: descending
+multiple_iterator: false
+chunk_length: 500
+chunk_shift_ratio: 0.5
+num_cache_chunks: 1024
+chunk_excluded_key_prefixes: []
+train_data_path_and_name_and_type:
+-   - dump/raw/train_nodev/text
+    - text
+    - text
+-   - dump/raw/train_nodev/wav.scp
+    - speech
+    - sound
+valid_data_path_and_name_and_type:
+-   - dump/raw/train_dev/text
+    - text
+    - text
+-   - dump/raw/train_dev/wav.scp
+    - speech
+    - sound
+allow_variable_data_keys: false
+max_cache_size: 0.0
+max_cache_fd: 32
+valid_max_cache_size: null
+exclude_weight_decay: false
+exclude_weight_decay_conf: {}
+optim: adadelta
+optim_conf: {}
+scheduler: null
+scheduler_conf: {}
+token_list:
+- <blank>
+- <unk>
+- ' '
+- IY1
+- T
+- N
+- S
+- EH1
+- R
+- AY1
+- F
+- AH0
+- EY1
+- V
+- AH1
+- UW1
+- W
+- K
+- IH1
+- IY0
+- B
+- D
+- AA1
+- OW1
+- L
+- Y
+- TH
+- AO1
+- JH
+- P
+- CH
+- M
+- ER0
+- Z
+- UW0
+- IH0
+- AW2
+- ER1
+- OW0
+- HH
+- G
+- AW1
+- AE1
+- EH2
+- EH0
+- AA0
+- UW2
+- EY0
+- <sos/eos>
+odim: null
+model_conf: {}
+use_preprocessor: true
+token_type: phn
+bpemodel: null
+non_linguistic_symbols: null
+cleaner: tacotron
+g2p: g2p_en
+feats_extract: fbank
+feats_extract_conf:
+    n_fft: 1024
+    hop_length: 256
+    win_length: null
+    fs: 16000
+    fmin: 80
+    fmax: 7600
+    n_mels: 80
+normalize: null
+normalize_conf: {}
+tts: transformer
+tts_conf:
+    loss_type: ASR
+pitch_extract: null
+pitch_extract_conf:
+    fs: 16000
+    n_fft: 1024
+    hop_length: 256
+    f0max: 400
+    f0min: 80
+pitch_normalize: null
+pitch_normalize_conf: {}
+energy_extract: null
+energy_extract_conf:
+    fs: 16000
+    n_fft: 1024
+    hop_length: 256
+    win_length: null
+energy_normalize: null
+energy_normalize_conf: {}
+required:
+- output_dir
+- token_list
+version: '202301'
+distributed: false
