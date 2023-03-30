@@ -241,7 +241,7 @@ v
             text_arr = list(map(lambda x: x[0][0], nbests_arr))
 
             # asr_loss = loss(text', text)
-            original_text_arr = self.decode(encoded)
+            original_text_arr = self.decode(encoded.cpu.numpy())
             ratios = torch.Tensor([Levenshtein.ratio(a, b) for a, b in zip(text_arr, original_text_arr)])
             asr_loss_1 = 1 - ratios.mean()
 
