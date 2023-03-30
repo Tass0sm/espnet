@@ -5,7 +5,8 @@
 #SBATCH --ntasks-per-node=64
 #SBATCH -p devel
 #SBATCH --gpus-per-node=2
-#SBATCH --mem=80gb
+#SBATCH --mem=98gb
+#SBATCH --mail-type=ALL
 
 
 module load gcc-compatibility/10.3.0
