@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import logging
+logging.getLogger(__name__)
 import sys
 from distutils.version import LooseVersion
 from pathlib import Path

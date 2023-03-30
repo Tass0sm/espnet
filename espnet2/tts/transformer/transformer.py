@@ -6,6 +6,8 @@
 from typing import Dict, Optional, Sequence, Tuple, Union
 from pathlib import Path
 
+import os
+import contextlib
 import soundfile
 import Levenshtein
 import logging
@@ -192,6 +194,9 @@ class TransformerLossWithASR(TransformerLoss):
             "asr": np.vectorize(speech2text, signature="(w)->()")
         }
 
+        logging.getLogger("espnet.nets.beam_search").setLevel(logging.CRITICAL)
+        logging.getLogger("espnet2.bin.asr_inference").setLevel(logging.CRITICAL)
+
     def forward(self, after_outs, before_outs, logits, ys, labels, olens, encoded, encoded_lengths):
         """Calculate forward propagation.
 v
@@ -228,6 +233,7 @@ v
                 mels = self.helper_modules["normalize"].inverse(
                     after_outs.clone()[None]
                 )[0][0]
+
 
             # asr(after_outs) -> text'
             wavs = self.helper_modules["vocoder"](mels.cpu().numpy())
@@ -678,9 +684,12 @@ class Transformer(AbsTTS):
             )  # see #3388
 
         # calculate loss values
-        l1_loss, l2_loss, bce_loss, asr_loss = self.criterion(
+        l1_loss, l2_loss, bce_loss, asr_loss1, asr_loss2 = self.criterion(
             after_outs, before_outs, logits, ys, labels, olens, encoded, encoded_lengths
         )
+
+        asr_loss = asr_loss1 + asr_loss2
+
         if self.loss_type == "L1":
             loss = l1_loss + bce_loss
         elif self.loss_type == "L2":

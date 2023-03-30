@@ -1,6 +1,7 @@
 """Beam search module."""
 
 import logging
+logging = logging.getLogger(__name__)
 from itertools import chain
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
