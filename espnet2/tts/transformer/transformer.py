@@ -177,7 +177,8 @@ class TransformerLossWithASR(TransformerLoss):
             ctc_weight=0.3,
             lm_weight=0.5,
             penalty=0.0,
-            nbest=1
+            nbest=1,
+            force_download=True,
         )
 
         self.decode = np.vectorize(lambda v: bytes(v.astype(np.uint8)).decode(), signature="(l)->()")
