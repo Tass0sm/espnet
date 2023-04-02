@@ -398,6 +398,7 @@ class Transformer(AbsTTS):
         sids: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
         joint_training: bool = False,
+        utts_training: bool = False,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Calculate forward propagation.
 
@@ -540,7 +541,7 @@ class Transformer(AbsTTS):
                 decoder_alpha=self.decoder.embed[-1].alpha.data.item(),
             )
 
-        if not joint_training:
+        if not joint_training and not utts_training:
             stats.update(loss=loss.item())
             loss, stats, weight = force_gatherable(
                 (loss, stats, batch_size), loss.device

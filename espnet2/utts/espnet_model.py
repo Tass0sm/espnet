@@ -67,21 +67,21 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         )
 
     def forward(
-            self,
-            text: torch.Tensor,
-            text_lengths: torch.Tensor,
-            speech: torch.Tensor,
-            speech_lengths: torch.Tensor,
-            durations: Optional[torch.Tensor] = None,
-            durations_lengths: Optional[torch.Tensor] = None,
-            pitch: Optional[torch.Tensor] = None,
-            pitch_lengths: Optional[torch.Tensor] = None,
-            energy: Optional[torch.Tensor] = None,
-            energy_lengths: Optional[torch.Tensor] = None,
-            spembs: Optional[torch.Tensor] = None,
-            sids: Optional[torch.Tensor] = None,
-            lids: Optional[torch.Tensor] = None,
-            **kwargs,
+        self,
+        text: torch.Tensor,
+        text_lengths: torch.Tensor,
+        speech: torch.Tensor,
+        speech_lengths: torch.Tensor,
+        durations: Optional[torch.Tensor] = None,
+        durations_lengths: Optional[torch.Tensor] = None,
+        pitch: Optional[torch.Tensor] = None,
+        pitch_lengths: Optional[torch.Tensor] = None,
+        energy: Optional[torch.Tensor] = None,
+        energy_lengths: Optional[torch.Tensor] = None,
+        spembs: Optional[torch.Tensor] = None,
+        sids: Optional[torch.Tensor] = None,
+        lids: Optional[torch.Tensor] = None,
+        **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Caclualte outputs and return the loss tensor.
 
@@ -107,29 +107,64 @@ class ESPnetUTTSModel(ESPnetTTSModel):
             Tensor: Weight tensor to summarize losses.
 
         """
-        loss, stats, after_outs = super().forward(
-            text,
-            text_lengths,
-            speech,
-            speech_lengths,
-            durations,
-            durations_lengths,
-            pitch,
-            pitch_lengths,
-            energy,
-            energy_lengths,
-            spembs,
-            sids,
-            lids,
-            **kwargs
+        with autocast(False):
+            # Extract features
+            if self.feats_extract is not None:
+                feats, feats_lengths = self.feats_extract(speech, speech_lengths)
+            else:
+                # Use precalculated feats (feats_type != raw case)
+                feats, feats_lengths = speech, speech_lengths
+
+            # Extract auxiliary features
+            if self.pitch_extract is not None and pitch is None:
+                pitch, pitch_lengths = self.pitch_extract(
+                    speech,
+                    speech_lengths,
+                    feats_lengths=feats_lengths,
+                    durations=durations,
+                    durations_lengths=durations_lengths,
+                )
+            if self.energy_extract is not None and energy is None:
+                energy, energy_lengths = self.energy_extract(
+                    speech,
+                    speech_lengths,
+                    feats_lengths=feats_lengths,
+                    durations=durations,
+                    durations_lengths=durations_lengths,
+                )
+
+            # Normalize
+            if self.normalize is not None:
+                feats, feats_lengths = self.normalize(feats, feats_lengths)
+            if self.pitch_normalize is not None:
+                pitch, pitch_lengths = self.pitch_normalize(pitch, pitch_lengths)
+            if self.energy_normalize is not None:
+                energy, energy_lengths = self.energy_normalize(energy, energy_lengths)
+
+        # Make batch for tts inputs
+        batch = dict(
+            text=text,
+            text_lengths=text_lengths,
+            feats=feats,
+            feats_lengths=feats_lengths,
         )
 
-        print("SPEECH", speech.shape)
+        # Update batch for additional auxiliary inputs
+        if spembs is not None:
+            batch.update(spembs=spembs)
+        if sids is not None:
+            batch.update(sids=sids)
+        if lids is not None:
+            batch.update(lids=lids)
+        if durations is not None:
+            batch.update(durations=durations, durations_lengths=durations_lengths)
+        if self.pitch_extract is not None and pitch is not None:
+            batch.update(pitch=pitch, pitch_lengths=pitch_lengths)
+        if self.energy_extract is not None and energy is not None:
+            batch.update(energy=energy, energy_lengths=energy_lengths)
+        if self.tts.require_raw_speech:
+            batch.update(speech=speech, speech_lengths=speech_lengths)
 
-        # print("LOSS", loss)
-        # print("STATS", stats)
-        # print("AFTER_OUTS", after_outs)
+        text2mel_loss, stats, feats_gen = self.tts(**batch)
 
-        breakpoint()
-
-        return loss, stats, after_outs
+        return text2mel_loss, stats, feats_gen
