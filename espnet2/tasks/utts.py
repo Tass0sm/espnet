@@ -175,9 +175,6 @@ class UTTSTask(TTSTask):
             )
             energy_normalize = energy_normalize_class(**args.energy_normalize_conf)
 
-        print("MODEL", asr_model)
-
-
         # 5. Build model
         model = ESPnetUTTSModel(
             feats_extract=feats_extract,
@@ -188,12 +185,7 @@ class UTTSTask(TTSTask):
             energy_normalize=energy_normalize,
             tts=tts,
             # asr model componentsh
-            asr_normalize=asr_model.normalize,
-            asr_preencoder=asr_model.preencoder,
-            asr_encoder=asr_model.encoder,
-            asr_postencoder=asr_model.postencoder,
-            asr_decoder=asr_model.decoder,
-            asr_ctc=asr_model.ctc,
+            asr_model=asr_model,
             **args.model_conf,
         )
         assert check_return_type(model)

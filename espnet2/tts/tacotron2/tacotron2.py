@@ -283,6 +283,7 @@ class Tacotron2(AbsTTS):
         sids: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
         joint_training: bool = False,
+        utts_training: bool = False,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Calculate forward propagation.
 
@@ -295,6 +296,7 @@ class Tacotron2(AbsTTS):
             sids (Optional[Tensor]): Batch of speaker IDs (B, 1).
             lids (Optional[Tensor]): Batch of language IDs (B, 1).
             joint_training (bool): Whether to perform joint training with vocoder.
+            utts_training (bool): TODO
 
         Returns:
             Tensor: Loss scalar value.
@@ -375,7 +377,7 @@ class Tacotron2(AbsTTS):
             loss = loss + attn_loss
             stats.update(attn_loss=attn_loss.item())
 
-        if not joint_training:
+        if not joint_training and not utts_training:
             stats.update(loss=loss.item())
             loss, stats, weight = force_gatherable(
                 (loss, stats, batch_size), loss.device
