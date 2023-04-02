@@ -46,8 +46,7 @@ python=python3       # Specify python to execute espnet commands.
 local_data_opts="" # Options to be passed to local/data.sh.
 
 # Feature extraction related
-feats_type=tokens          # Input feature type.
-
+feats_type=raw          # Input feature type.
 audio_format=flac          # Audio format: wav, flac, wav.ark, flac.ark  (only in feats_type=raw).
 min_wav_duration=0.1       # Minimum duration in second.
 max_wav_duration=20        # Maximum duration in second.
@@ -230,11 +229,11 @@ fi
 
 
 # Check feature type
-if [ "${feats_type}" = tokens ]; then
-    data_feats="${dumpdir}/tokens"
+if [ "${feats_type}" = raw ]; then
+    data_feats="${dumpdir}/raw"
 else
     log "${help_message}"
-    log "Error: only supported: --feats_type tokens"
+    log "Error: only supported: --feats_type raw"
     exit 2
 fi
 
@@ -328,17 +327,142 @@ if ! "${skip_data_prep}"; then
                 _suf=""
             fi
             utils/copy_data_dir.sh data/"${dset}" "${data_feats}${_suf}/${dset}"
-            # rm -f ${data_feats}${_suf}/${dset}/{segments,wav.scp,reco2file_and_channel}
-            # _opts=
-            # if [ -e data/"${dset}"/segments ]; then
-            #     _opts+="--segments data/${dset}/segments "
-            # fi
-            # # shellcheck disable=SC2086
-            # scripts/audio/format_wav_scp.sh --nj "${nj}" --cmd "${train_cmd}" \
-            #     --audio-format "${audio_format}" --fs "${fs}" ${_opts} \
-            #     "data/${dset}/wav.scp" "${data_feats}${_suf}/${dset}"
+            rm -f ${data_feats}${_suf}/${dset}/{segments,wav.scp,reco2file_and_channel}
+            _opts=
+            if [ -e data/"${dset}"/segments ]; then
+                _opts+="--segments data/${dset}/segments "
+            fi
+            # shellcheck disable=SC2086
+            scripts/audio/format_wav_scp.sh --nj "${nj}" --cmd "${train_cmd}" \
+                --audio-format "${audio_format}" --fs "${fs}" ${_opts} \
+                "data/${dset}/wav.scp" "${data_feats}${_suf}/${dset}"
             echo "${feats_type}" > "${data_feats}${_suf}/${dset}/feats_type"
         done
+
+        # Extract X-vector
+        if "${use_xvector}"; then
+            if [ "${xvector_tool}" = "kaldi" ]; then
+                log "Stage 2+: Extract X-vector: data/ -> ${dumpdir}/xvector (Require Kaldi)"
+                # Download X-vector pretrained model
+                xvector_exp=${expdir}/xvector_nnet_1a
+                if [ ! -e "${xvector_exp}" ]; then
+                    log "X-vector model does not exist. Download pre-trained model."
+                    wget http://kaldi-asr.org/models/8/0008_sitw_v2_1a.tar.gz
+                    tar xvf 0008_sitw_v2_1a.tar.gz
+                    [ ! -e "${expdir}" ] && mkdir -p "${expdir}"
+                    mv 0008_sitw_v2_1a/exp/xvector_nnet_1a "${xvector_exp}"
+                    rm -rf 0008_sitw_v2_1a.tar.gz 0008_sitw_v2_1a
+                fi
+
+                # Generate the MFCC features, VAD decision, and X-vector
+                for dset in "${train_set}" "${valid_set}" ${test_sets}; do
+                    if [ "${dset}" = "${train_set}" ] || [ "${dset}" = "${valid_set}" ]; then
+                        _suf="/org"
+                    else
+                        _suf=""
+                    fi
+                    # 1. Copy datadir and resample to 16k
+                    utils/copy_data_dir.sh "${data_feats}${_suf}/${dset}" "${dumpdir}/mfcc/${dset}"
+                    utils/data/resample_data_dir.sh 16000 "${dumpdir}/mfcc/${dset}"
+
+                    # 2. Extract mfcc features
+                    _nj=$(min "${nj}" "$(<${dumpdir}/mfcc/${dset}/utt2spk wc -l)")
+                    steps/make_mfcc.sh --nj "${_nj}" --cmd "${train_cmd}" \
+                        --write-utt2num-frames true \
+                        --mfcc-config conf/mfcc.conf \
+                        "${dumpdir}/mfcc/${dset}"
+                    utils/fix_data_dir.sh "${dumpdir}/mfcc/${dset}"
+
+                    # 3. Compute VAD decision
+                    _nj=$(min "${nj}" "$(<${dumpdir}/mfcc/${dset}/spk2utt wc -l)")
+                    sid/compute_vad_decision.sh --nj ${_nj} --cmd "${train_cmd}" \
+                        --vad-config conf/vad.conf \
+                        "${dumpdir}/mfcc/${dset}"
+                    utils/fix_data_dir.sh "${dumpdir}/mfcc/${dset}"
+
+                    # 4. Extract X-vector
+                    sid/nnet3/xvector/extract_xvectors.sh --nj "${_nj}" --cmd "${train_cmd}" \
+                        "${xvector_exp}" \
+                        "${dumpdir}/mfcc/${dset}" \
+                        "${dumpdir}/xvector/${dset}"
+
+                    # 5. Filter scp
+                    # NOTE(kan-bayashi): Since sometimes mfcc or x-vector extraction is failed,
+                    #   the number of utts will be different from the original features (raw or fbank).
+                    #   To avoid this mismatch, perform filtering of the original feature scp here.
+                    cp "${data_feats}${_suf}/${dset}"/wav.{scp,scp.bak}
+                    <"${data_feats}${_suf}/${dset}/wav.scp.bak" \
+                        utils/filter_scp.pl "${dumpdir}/xvector/${dset}/xvector.scp" \
+                        >"${data_feats}${_suf}/${dset}/wav.scp"
+                    utils/fix_data_dir.sh "${data_feats}${_suf}/${dset}"
+                done
+            else
+                # Assume that others toolkits are python-based
+                log "Stage 2+: Extract X-vector: data/ -> ${dumpdir}/xvector using python toolkits"
+                for dset in "${train_set}" "${valid_set}" ${test_sets}; do
+                    if [ "${dset}" = "${train_set}" ] || [ "${dset}" = "${valid_set}" ]; then
+                        _suf="/org"
+                    else
+                        _suf=""
+                    fi
+                    if [ "${xvector_tool}" = "rawnet" ]; then
+                        xvector_model="RawNet"
+                    fi
+                    pyscripts/utils/extract_xvectors.py \
+                        --pretrained_model ${xvector_model} \
+                        --toolkit ${xvector_tool} \
+                        ${data_feats}${_suf}/${dset} \
+                        ${dumpdir}/xvector/${dset}
+                done
+            fi
+        fi
+
+        # Prepare spk id input
+        if "${use_sid}"; then
+            log "Stage 2+: Prepare speaker id: data/ -> ${data_feats}/"
+            for dset in "${train_set}" "${valid_set}" ${test_sets}; do
+                if [ "${dset}" = "${train_set}" ] || [ "${dset}" = "${valid_set}" ]; then
+                    _suf="/org"
+                else
+                    _suf=""
+                fi
+                if [ "${dset}" = "${train_set}" ]; then
+                    # Make spk2sid
+                    # NOTE(kan-bayashi): 0 is reserved for unknown speakers
+                    echo "<unk> 0" > "${data_feats}${_suf}/${dset}/spk2sid"
+                    cut -f 2 -d " " "${data_feats}${_suf}/${dset}/utt2spk" | sort | uniq | \
+                        awk '{print $1 " " NR}' >> "${data_feats}${_suf}/${dset}/spk2sid"
+                fi
+                pyscripts/utils/utt2spk_to_utt2sid.py \
+                    "${data_feats}/org/${train_set}/spk2sid" \
+                    "${data_feats}${_suf}/${dset}/utt2spk" \
+                    > "${data_feats}${_suf}/${dset}/utt2sid"
+            done
+        fi
+
+        # Prepare lang id input
+        if "${use_lid}"; then
+            log "Stage 2+: Prepare lang id: data/ -> ${data_feats}/"
+            for dset in "${train_set}" "${valid_set}" ${test_sets}; do
+                if [ "${dset}" = "${train_set}" ] || [ "${dset}" = "${valid_set}" ]; then
+                    _suf="/org"
+                else
+                    _suf=""
+                fi
+                if [ "${dset}" = "${train_set}" ]; then
+                    # Make lang2lid
+                    # NOTE(kan-bayashi): 0 is reserved for unknown languages
+                    echo "<unk> 0" > "${data_feats}${_suf}/${dset}/lang2lid"
+                    cut -f 2 -d " " "${data_feats}${_suf}/${dset}/utt2lang" | sort | uniq | \
+                        awk '{print $1 " " NR}' >> "${data_feats}${_suf}/${dset}/lang2lid"
+                fi
+                # NOTE(kan-bayashi): We can reuse the same script for making utt2sid
+                pyscripts/utils/utt2spk_to_utt2sid.py \
+                    "${data_feats}/org/${train_set}/lang2lid" \
+                    "${data_feats}${_suf}/${dset}/utt2lang" \
+                    > "${data_feats}${_suf}/${dset}/utt2lid"
+            done
+        fi
     fi
 
 
@@ -363,36 +487,36 @@ if ! "${skip_data_prep}"; then
             _max_length=$(python3 -c "print(int(${max_wav_duration} * ${_fs}))")
 
             # utt2num_samples is created by format_wav_scp.sh
-            # <"${data_feats}/org/${dset}/utt2num_samples" \
-            #     awk -v min_length="${_min_length}" -v max_length="${_max_length}" \
-            #         '{ if ($2 > min_length && $2 < max_length ) print $0; }' \
-            #         >"${data_feats}/${dset}/utt2num_samples"
-            # <"${data_feats}/org/${dset}/wav.scp" \
-            #     utils/filter_scp.pl "${data_feats}/${dset}/utt2num_samples"  \
-            #     >"${data_feats}/${dset}/wav.scp"
+            <"${data_feats}/org/${dset}/utt2num_samples" \
+                awk -v min_length="${_min_length}" -v max_length="${_max_length}" \
+                    '{ if ($2 > min_length && $2 < max_length ) print $0; }' \
+                    >"${data_feats}/${dset}/utt2num_samples"
+            <"${data_feats}/org/${dset}/wav.scp" \
+                utils/filter_scp.pl "${data_feats}/${dset}/utt2num_samples"  \
+                >"${data_feats}/${dset}/wav.scp"
 
             # Remove empty text
             <"${data_feats}/org/${dset}/text" \
                 awk ' { if( NF != 1 ) print $0; } ' >"${data_feats}/${dset}/text"
 
             # fix_data_dir.sh leaves only utts which exist in all files
-            # _utt_extra_files=""
-            # if [ -e "${data_feats}/org/${dset}/utt2sid" ]; then
-            #     _utt_extra_files+="utt2sid "
-            # fi
-            # if [ -e "${data_feats}/org/${dset}/utt2lid" ]; then
-            #     _utt_extra_files+="utt2lid "
-            # fi
+            _utt_extra_files=""
+            if [ -e "${data_feats}/org/${dset}/utt2sid" ]; then
+                _utt_extra_files+="utt2sid "
+            fi
+            if [ -e "${data_feats}/org/${dset}/utt2lid" ]; then
+                _utt_extra_files+="utt2lid "
+            fi
             # shellcheck disable=SC2086
-            # utils/fix_data_dir.sh --utt_extra_files "${_utt_extra_files}" "${data_feats}/${dset}"
+            utils/fix_data_dir.sh --utt_extra_files "${_utt_extra_files}" "${data_feats}/${dset}"
 
             # Filter x-vector
-            # if "${use_xvector}"; then
-            #     cp "${dumpdir}/xvector/${dset}"/xvector.{scp,scp.bak}
-            #     <"${dumpdir}/xvector/${dset}/xvector.scp.bak" \
-            #         utils/filter_scp.pl "${data_feats}/${dset}/wav.scp"  \
-            #         >"${dumpdir}/xvector/${dset}/xvector.scp"
-            # fi
+            if "${use_xvector}"; then
+                cp "${dumpdir}/xvector/${dset}"/xvector.{scp,scp.bak}
+                <"${dumpdir}/xvector/${dset}/xvector.scp.bak" \
+                    utils/filter_scp.pl "${data_feats}/${dset}/wav.scp"  \
+                    >"${dumpdir}/xvector/${dset}/xvector.scp"
+            fi
         done
     fi
 
@@ -507,29 +631,29 @@ if ! "${skip_train}"; then
         # _opts+="--energy_extract_conf hop_length=${n_shift} "
         # _opts+="--energy_extract_conf win_length=${win_length} "
 
-        # if [ -n "${teacher_dumpdir}" ]; then
-        #     _teacher_train_dir="${teacher_dumpdir}/${train_set}"
-        #     _teacher_valid_dir="${teacher_dumpdir}/${valid_set}"
-        #     _opts+="--train_data_path_and_name_and_type ${_teacher_train_dir}/durations,durations,text_int "
-        #     _opts+="--valid_data_path_and_name_and_type ${_teacher_valid_dir}/durations,durations,text_int "
-        # fi
+        if [ -n "${teacher_dumpdir}" ]; then
+            _teacher_train_dir="${teacher_dumpdir}/${train_set}"
+            _teacher_valid_dir="${teacher_dumpdir}/${valid_set}"
+            _opts+="--train_data_path_and_name_and_type ${_teacher_train_dir}/durations,durations,text_int "
+            _opts+="--valid_data_path_and_name_and_type ${_teacher_valid_dir}/durations,durations,text_int "
+        fi
 
-        # if "${use_xvector}"; then
-        #     _xvector_train_dir="${dumpdir}/xvector/${train_set}"
-        #     _xvector_valid_dir="${dumpdir}/xvector/${valid_set}"
-        #     _opts+="--train_data_path_and_name_and_type ${_xvector_train_dir}/xvector.scp,spembs,kaldi_ark "
-        #     _opts+="--valid_data_path_and_name_and_type ${_xvector_valid_dir}/xvector.scp,spembs,kaldi_ark "
-        # fi
+        if "${use_xvector}"; then
+            _xvector_train_dir="${dumpdir}/xvector/${train_set}"
+            _xvector_valid_dir="${dumpdir}/xvector/${valid_set}"
+            _opts+="--train_data_path_and_name_and_type ${_xvector_train_dir}/xvector.scp,spembs,kaldi_ark "
+            _opts+="--valid_data_path_and_name_and_type ${_xvector_valid_dir}/xvector.scp,spembs,kaldi_ark "
+        fi
 
-        # if "${use_sid}"; then
-        #     _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2sid,sids,text_int "
-        #     _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2sid,sids,text_int "
-        # fi
+        if "${use_sid}"; then
+            _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2sid,sids,text_int "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2sid,sids,text_int "
+        fi
 
-        # if "${use_lid}"; then
-        #     _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2lid,lids,text_int "
-        #     _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2lid,lids,text_int "
-        # fi
+        if "${use_lid}"; then
+            _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2lid,lids,text_int "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2lid,lids,text_int "
+        fi
 
         # 1. Split the key file
         _logdir="${tts_stats_dir}/logdir"
@@ -566,9 +690,14 @@ if ! "${skip_train}"; then
                 --collect_stats true \
                 --asr_model_file "${asr_exp}"/"${training_asr_model}" \
                 --asr_model_config "${asr_exp}"/config.yaml \
+                --normalize none \
+                --pitch_normalize none \
+                --energy_normalize none \
                 --write_collected_feats "${write_collected_feats}" \
                 --train_data_path_and_name_and_type "${_train_dir}/text,text,text" \
+                --train_data_path_and_name_and_type "${_train_dir}/${_scp},speech,${_type}" \
                 --valid_data_path_and_name_and_type "${_valid_dir}/text,text,text" \
+                --valid_data_path_and_name_and_type "${_valid_dir}/${_scp},speech,${_type}" \
                 --train_shape_file "${_logdir}/train.JOB.scp" \
                 --valid_shape_file "${_logdir}/valid.JOB.scp" \
                 --output_dir "${_logdir}/stats.JOB" \
@@ -598,7 +727,7 @@ if ! "${skip_train}"; then
     if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
         _train_dir="${data_feats}/${train_set}"
         _valid_dir="${data_feats}/${valid_set}"
-        log "Stage 7: UTTS Training: train_set=${_train_dir}, valid_set=${_valid_dir}"
+        log "Stage 7: TTS Training: train_set=${_train_dir}, valid_set=${_valid_dir}"
 
         _opts=
         if [ -n "${train_config}" ]; then
@@ -607,81 +736,179 @@ if ! "${skip_train}"; then
             _opts+="--config ${train_config} "
         fi
 
-        # _scp=wav.scp
-        # if [[ "${audio_format}" == *ark* ]]; then
-        #     _type=kaldi_ark
-        # else
-        #     # "sound" supports "wav", "flac", etc.
-        #     _type=sound
-        # fi
-        # _fold_length="$((speech_fold_length * n_shift))"
-        # _opts+="--feats_extract ${feats_extract} "
-        # _opts+="--feats_extract_conf n_fft=${n_fft} "
-        # _opts+="--feats_extract_conf hop_length=${n_shift} "
-        # _opts+="--feats_extract_conf win_length=${win_length} "
-        # if [ "${feats_extract}" = fbank ]; then
-        #     _opts+="--feats_extract_conf fs=${fs} "
-        #     _opts+="--feats_extract_conf fmin=${fmin} "
-        #     _opts+="--feats_extract_conf fmax=${fmax} "
-        #     _opts+="--feats_extract_conf n_mels=${n_mels} "
-        # fi
-
-        if [ "${num_splits}" -gt 1 ]; then
-            # If you met a memory error when parsing text files, this option may help you.
-            # The corpus is split into subsets and each subset is used for training one by one in order,
-            # so the memory footprint can be limited to the memory required for each dataset.
-
-            _split_dir="${tts_stats_dir}/splits${num_splits}"
-            if [ ! -f "${_split_dir}/.done" ]; then
-                rm -f "${_split_dir}/.done"
-                ${python} -m espnet2.bin.split_scps \
-                  --scps \
-                      "${_train_dir}/text" \
-                      "${tts_stats_dir}/train/text_shape.${token_type}" \
-                  --num_splits "${num_splits}" \
-                  --output_dir "${_split_dir}"
-                touch "${_split_dir}/.done"
+        if [ -z "${teacher_dumpdir}" ]; then
+            #####################################
+            #     CASE 1: AR model training     #
+            #####################################
+            _scp=wav.scp
+            if [[ "${audio_format}" == *ark* ]]; then
+                _type=kaldi_ark
             else
-                log "${_split_dir}/.done exists. Spliting is skipped"
+                # "sound" supports "wav", "flac", etc.
+                _type=sound
             fi
+            _fold_length="$((speech_fold_length * n_shift))"
+            # _opts+="--feats_extract ${feats_extract} "
+            # _opts+="--feats_extract_conf n_fft=${n_fft} "
+            # _opts+="--feats_extract_conf hop_length=${n_shift} "
+            # _opts+="--feats_extract_conf win_length=${win_length} "
+            # if [ "${feats_extract}" = fbank ]; then
+            #     _opts+="--feats_extract_conf fs=${fs} "
+            #     _opts+="--feats_extract_conf fmin=${fmin} "
+            #     _opts+="--feats_extract_conf fmax=${fmax} "
+            #     _opts+="--feats_extract_conf n_mels=${n_mels} "
+            # fi
 
-            _opts+="--train_data_path_and_name_and_type ${_split_dir}/text,text,text "
-            _opts+="--train_shape_file ${_split_dir}/text_shape.${token_type} "
-            _opts+="--multiple_iterator true "
+            if [ "${num_splits}" -gt 1 ]; then
+                # If you met a memory error when parsing text files, this option may help you.
+                # The corpus is split into subsets and each subset is used for training one by one in order,
+                # so the memory footprint can be limited to the memory required for each dataset.
 
+                _split_dir="${tts_stats_dir}/splits${num_splits}"
+                if [ ! -f "${_split_dir}/.done" ]; then
+                    rm -f "${_split_dir}/.done"
+                    ${python} -m espnet2.bin.split_scps \
+                      --scps \
+                          "${_train_dir}/text" \
+                          "${_train_dir}/${_scp}" \
+                          "${tts_stats_dir}/train/speech_shape" \
+                          "${tts_stats_dir}/train/text_shape.${token_type}" \
+                      --num_splits "${num_splits}" \
+                      --output_dir "${_split_dir}"
+                    touch "${_split_dir}/.done"
+                else
+                    log "${_split_dir}/.done exists. Spliting is skipped"
+                fi
+
+                _opts+="--train_data_path_and_name_and_type ${_split_dir}/text,text,text "
+                _opts+="--train_data_path_and_name_and_type ${_split_dir}/${_scp},speech,${_type} "
+                _opts+="--train_shape_file ${_split_dir}/text_shape.${token_type} "
+                _opts+="--train_shape_file ${_split_dir}/speech_shape "
+                _opts+="--multiple_iterator true "
+
+            else
+                _opts+="--train_data_path_and_name_and_type ${_train_dir}/text,text,text "
+                _opts+="--train_data_path_and_name_and_type ${_train_dir}/${_scp},speech,${_type} "
+                _opts+="--train_shape_file ${tts_stats_dir}/train/text_shape.${token_type} "
+                _opts+="--train_shape_file ${tts_stats_dir}/train/speech_shape "
+            fi
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/text,text,text "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/${_scp},speech,${_type} "
+            _opts+="--valid_shape_file ${tts_stats_dir}/valid/text_shape.${token_type} "
+            _opts+="--valid_shape_file ${tts_stats_dir}/valid/speech_shape "
         else
+            #####################################
+            #   CASE 2: Non-AR model training   #
+            #####################################
+            _teacher_train_dir="${teacher_dumpdir}/${train_set}"
+            _teacher_valid_dir="${teacher_dumpdir}/${valid_set}"
+            _fold_length="${speech_fold_length}"
             _opts+="--train_data_path_and_name_and_type ${_train_dir}/text,text,text "
+            _opts+="--train_data_path_and_name_and_type ${_teacher_train_dir}/durations,durations,text_int "
             _opts+="--train_shape_file ${tts_stats_dir}/train/text_shape.${token_type} "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/text,text,text "
+            _opts+="--valid_data_path_and_name_and_type ${_teacher_valid_dir}/durations,durations,text_int "
+            _opts+="--valid_shape_file ${tts_stats_dir}/valid/text_shape.${token_type} "
+
+            if [ -e ${_teacher_train_dir}/probs ]; then
+                # Knowledge distillation case: use the outputs of the teacher model as the target
+                _scp=feats.scp
+                _type=npy
+                _odim="$(head -n 1 "${_teacher_train_dir}/speech_shape" | cut -f 2 -d ",")"
+                _opts+="--odim=${_odim} "
+                _opts+="--train_data_path_and_name_and_type ${_teacher_train_dir}/denorm/${_scp},speech,${_type} "
+                _opts+="--train_shape_file ${_teacher_train_dir}/speech_shape "
+                _opts+="--valid_data_path_and_name_and_type ${_teacher_valid_dir}/denorm/${_scp},speech,${_type} "
+                _opts+="--valid_shape_file ${_teacher_valid_dir}/speech_shape "
+            else
+                # Teacher forcing case: use groundtruth as the target
+                _scp=wav.scp
+                if [[ "${audio_format}" == *ark* ]]; then
+                    _type=kaldi_ark
+                else
+                    # "sound" supports "wav", "flac", etc.
+                    _type=sound
+                fi
+                _fold_length="$((speech_fold_length * n_shift))"
+                # _opts+="--feats_extract ${feats_extract} "
+                # _opts+="--feats_extract_conf n_fft=${n_fft} "
+                # _opts+="--feats_extract_conf hop_length=${n_shift} "
+                # _opts+="--feats_extract_conf win_length=${win_length} "
+                # if [ "${feats_extract}" = fbank ]; then
+                #     _opts+="--feats_extract_conf fs=${fs} "
+                #     _opts+="--feats_extract_conf fmin=${fmin} "
+                #     _opts+="--feats_extract_conf fmax=${fmax} "
+                #     _opts+="--feats_extract_conf n_mels=${n_mels} "
+                # fi
+                _opts+="--train_data_path_and_name_and_type ${_train_dir}/${_scp},speech,${_type} "
+                _opts+="--train_shape_file ${tts_stats_dir}/train/speech_shape "
+                _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/${_scp},speech,${_type} "
+                _opts+="--valid_shape_file ${tts_stats_dir}/valid/speech_shape "
+            fi
         fi
-        _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/text,text,text "
-        _opts+="--valid_shape_file ${tts_stats_dir}/valid/text_shape.${token_type} "
 
         # If there are dumped files of additional inputs, we use it to reduce computational cost
         # NOTE (kan-bayashi): Use dumped files of the target features as well?
-        # if [ -e "${tts_stats_dir}/train/collect_feats/pitch.scp" ]; then
-        #     _scp=pitch.scp
-        #     _type=npy
-        #     _train_collect_dir=${tts_stats_dir}/train/collect_feats
-        #     _valid_collect_dir=${tts_stats_dir}/valid/collect_feats
-        #     _opts+="--train_data_path_and_name_and_type ${_train_collect_dir}/${_scp},pitch,${_type} "
-        #     _opts+="--valid_data_path_and_name_and_type ${_valid_collect_dir}/${_scp},pitch,${_type} "
-        # fi
-        # if [ -e "${tts_stats_dir}/train/collect_feats/energy.scp" ]; then
-        #     _scp=energy.scp
-        #     _type=npy
-        #     _train_collect_dir=${tts_stats_dir}/train/collect_feats
-        #     _valid_collect_dir=${tts_stats_dir}/valid/collect_feats
-        #     _opts+="--train_data_path_and_name_and_type ${_train_collect_dir}/${_scp},energy,${_type} "
-        #     _opts+="--valid_data_path_and_name_and_type ${_valid_collect_dir}/${_scp},energy,${_type} "
-        # fi
+        if [ -e "${tts_stats_dir}/train/collect_feats/pitch.scp" ]; then
+            _scp=pitch.scp
+            _type=npy
+            _train_collect_dir=${tts_stats_dir}/train/collect_feats
+            _valid_collect_dir=${tts_stats_dir}/valid/collect_feats
+            _opts+="--train_data_path_and_name_and_type ${_train_collect_dir}/${_scp},pitch,${_type} "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_collect_dir}/${_scp},pitch,${_type} "
+        fi
+        if [ -e "${tts_stats_dir}/train/collect_feats/energy.scp" ]; then
+            _scp=energy.scp
+            _type=npy
+            _train_collect_dir=${tts_stats_dir}/train/collect_feats
+            _valid_collect_dir=${tts_stats_dir}/valid/collect_feats
+            _opts+="--train_data_path_and_name_and_type ${_train_collect_dir}/${_scp},energy,${_type} "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_collect_dir}/${_scp},energy,${_type} "
+        fi
 
+        # Check extra statistics
+        if [ -e "${tts_stats_dir}/train/pitch_stats.npz" ]; then
+            _opts+="--pitch_extract_conf fs=${fs} "
+            _opts+="--pitch_extract_conf n_fft=${n_fft} "
+            _opts+="--pitch_extract_conf hop_length=${n_shift} "
+            _opts+="--pitch_extract_conf f0max=${f0max} "
+            _opts+="--pitch_extract_conf f0min=${f0min} "
+            _opts+="--pitch_normalize_conf stats_file=${tts_stats_dir}/train/pitch_stats.npz "
+        fi
+        if [ -e "${tts_stats_dir}/train/energy_stats.npz" ]; then
+            _opts+="--energy_extract_conf fs=${fs} "
+            _opts+="--energy_extract_conf n_fft=${n_fft} "
+            _opts+="--energy_extract_conf hop_length=${n_shift} "
+            _opts+="--energy_extract_conf win_length=${win_length} "
+            _opts+="--energy_normalize_conf stats_file=${tts_stats_dir}/train/energy_stats.npz "
+        fi
 
-        # if [ "${feats_normalize}" = "global_mvn" ]; then
-        #     _opts+="--normalize_conf stats_file=${tts_stats_dir}/train/feats_stats.npz "
-        # fi
+        # Add X-vector to the inputs if needed
+        if "${use_xvector}"; then
+            _xvector_train_dir="${dumpdir}/xvector/${train_set}"
+            _xvector_valid_dir="${dumpdir}/xvector/${valid_set}"
+            _opts+="--train_data_path_and_name_and_type ${_xvector_train_dir}/xvector.scp,spembs,kaldi_ark "
+            _opts+="--valid_data_path_and_name_and_type ${_xvector_valid_dir}/xvector.scp,spembs,kaldi_ark "
+        fi
 
-        log "Generate '${tts_exp}/run.sh'. You can resume the process from stage 6 using this script"
-        mkdir -p "${tts_exp}"; echo "${run_args} --stage 6 \"\$@\"; exit \$?" > "${tts_exp}/run.sh"; chmod +x "${tts_exp}/run.sh"
+        # Add spekaer ID to the inputs if needed
+        if "${use_sid}"; then
+            _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2sid,sids,text_int "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2sid,sids,text_int "
+        fi
+
+        # Add language ID to the inputs if needed
+        if "${use_lid}"; then
+            _opts+="--train_data_path_and_name_and_type ${_train_dir}/utt2lid,lids,text_int "
+            _opts+="--valid_data_path_and_name_and_type ${_valid_dir}/utt2lid,lids,text_int "
+        fi
+
+        if [ "${feats_normalize}" = "global_mvn" ]; then
+            _opts+="--normalize_conf stats_file=${tts_stats_dir}/train/feats_stats.npz "
+        fi
+
+        log "Generate '${tts_exp}/run.sh'. You can resume the process from stage 7 using this script"
+        mkdir -p "${tts_exp}"; echo "${run_args} --stage 7 \"\$@\"; exit \$?" > "${tts_exp}/run.sh"; chmod +x "${tts_exp}/run.sh"
 
         # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case
 
@@ -705,16 +932,10 @@ if ! "${skip_train}"; then
                 --asr_model_config "${asr_exp}"/config.yaml \
                 --resume true \
                 --fold_length "${text_fold_length}" \
+                --fold_length "${_fold_length}" \
                 --output_dir "${tts_exp}" \
                 ${_opts} ${train_args}
 
-        # --use_preprocessor true \
-        # --token_type "${token_type}" \
-        # --token_list "${token_list}" \
-        # --non_linguistic_symbols "${nlsyms_txt}" \
-        # --cleaner "${cleaner}" \
-        # --g2p "${g2p}" \
-        # --asr_train_config "${asr_exp}"/config.yaml \
     fi
 else
     log "Skip training stages"
