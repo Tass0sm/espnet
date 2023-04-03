@@ -75,11 +75,28 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         }
 
         self.asr_normalize = asr_model.normalize
+        if self.asr_normalize is not None:
+            self.asr_normalize.requires_grad_(False)
+
         self.asr_preencoder = asr_model.preencoder
+        if self.asr_preencoder is not None:
+            self.asr_preencoder.requires_grad_(False)
+
         self.asr_encoder = asr_model.encoder
+        if self.asr_encoder is not None:
+            self.asr_encoder.requires_grad_(False)
+
         self.asr_postencoder = asr_model.postencoder
+        if self.asr_postencoder is not None:
+            self.asr_postencoder.requires_grad_(False)
+
         self.asr_decoder = asr_model.decoder
+        if self.asr_decoder is not None:
+            self.asr_decoder.requires_grad_(False)
+
         self.asr_ctc = asr_model.ctc
+        if self.asr_ctc is not None:
+            self.asr_ctc.requires_grad_(False)
 
 
     def asr_encode(
@@ -169,9 +186,9 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         # for data-parallel
         text = text[:, : text_lengths.max()]
 
-        feats_denorm = self.normalize.inverse(
-            feats.clone()[None]
-        )[0][0]
+        # feats_denorm = self.normalize.inverse(
+        #     feats.clone()[None]
+        # )[0][0]
 
         # 1. Encoder
         encoder_out, encoder_out_lens = self.asr_encode(feats, feats_lengths)
@@ -310,7 +327,7 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         sids: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
         lambda_text2mel: float = 1.0,
-        lambda_asr: float = 0.1,
+        lambda_asr: float = 1.0,
         **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Caclualte outputs and return the loss tensor.
@@ -396,19 +413,21 @@ class ESPnetUTTSModel(ESPnetTTSModel):
             batch.update(speech=speech, speech_lengths=speech_lengths)
 
         text2mel_loss, stats, feats_gen = self.tts(**batch, utts_training=True)
-
-        with torch.no_grad():
-            asr_loss, asr_stats, asr_weight = self.asr_forward(
-                text, text_lengths, feats_gen, feats_lengths
-            )
-
         stats.update(text2mel_loss=text2mel_loss.item())
-        stats.update(asr_loss=asr_loss.item())
 
+        asr_loss, asr_stats, asr_weight = self.asr_forward(
+            text, text_lengths, feats_gen, feats_lengths
+        )
+        stats.update(asr_loss=asr_loss.item())
+        stats.update(**asr_stats);
+
+        # this is okay. this computation results in the loss leaf tensor of the
+        # computation graph.  one edge points directly to the tts model. another
+        # edge points to the asr model graph, which isn't storing any
+        # gradients. but the backpropagation still moves through it.
         loss = lambda_text2mel * text2mel_loss + lambda_asr * asr_loss
 
         stats.update(loss=loss.item())
-        stats.update(**asr_stats);
 
         batch_size = text.size(0)
         loss, stats, weight = force_gatherable(
