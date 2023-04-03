@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=an4_train_job
-#SBATCH --time=16:00:00
+#SBATCH --job-name=an4_download_and_prep_job
+#SBATCH --time=8:00:00
 #SBATCH --nodes=1 --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
 #SBATCH --gpus-per-node=1
@@ -18,5 +18,10 @@ set -x
 
 source path.sh
 
-./run.sh --ngpu 0 --nj 16 --stage 5 --stop-stage 7 \
-         --train_config "conf/train_transformer.yaml"
+./run.sh --ngpu 0 --nj 16 --stage 0 --stop-stage 4 \
+         --nlsyms_txt none \
+         --token_type char \
+         --cleaner none \
+         --g2p none \
+         --lang noinfo \
+         --train_config "../utts1/conf/train_transformer.yaml"

@@ -399,7 +399,7 @@ class ESPnetUTTSModel(ESPnetTTSModel):
 
         with torch.no_grad():
             asr_loss, asr_stats, asr_weight = self.asr_forward(
-                text, text_lengths, feats, feats_lengths
+                text, text_lengths, feats_gen, feats_lengths
             )
 
         stats.update(text2mel_loss=text2mel_loss.item())

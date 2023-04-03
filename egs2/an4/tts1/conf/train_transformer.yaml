@@ -1,0 +1,7 @@
+tts: transformer
+
+nlsyms_txt: none        # Non-linguistic symbol list (needed if existing).
+token_type: char        # Transcription type (char or phn).
+cleaner: none           # Text cleaner.
+g2p: none               # g2p method (needed if token_type=phn).
+lang: noinfo            # The language type of corpus.
