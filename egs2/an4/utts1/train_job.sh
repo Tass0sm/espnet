@@ -18,5 +18,5 @@ set -x
 
 source path.sh
 
-./run.sh --ngpu 0 --nj 16 --stage 5 --stop-stage 7 \
+./run.sh --ngpu 0 --nj 16 --stage 6 --stop-stage 6 \
          --train_config "conf/train_transformer.yaml"

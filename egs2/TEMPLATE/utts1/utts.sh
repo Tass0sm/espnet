@@ -101,7 +101,7 @@ inference_model=train.loss.ave.pth # Model path for decoding.
 vocoder_file=none  # Vocoder parameter file, If set to none, Griffin-Lim will be used.
 
 # Download an asr model from Model Zoo and use it for the self supervising part.
-download_asr_model="espnet/pengcheng_librimix_asr_train_sot_asr_conformer_raw_en_char_sp"
+download_asr_model="espnet/kamo-naoyuki_chime4_asr_train_asr_transformer3_raw_en_char_sp_valid.acc.ave"
 
 # [Task dependent] Set the datadir name created by local/data.sh
 # For now I'm manually making sure that it matches training config of the asr model
@@ -546,47 +546,45 @@ fi
 
 
 if ! "${skip_train}"; then
-    if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-        log "Stage 5: Using ${download_asr_model} for self supervision"
-        asr_exp="${expdir}/${download_asr_model}"
+    log "Using ${download_asr_model} for self supervision"
+    asr_exp="${expdir}/${download_asr_model}"
 
-        mkdir -p "${asr_exp}"
+    mkdir -p "${asr_exp}"
 
-        # If the model already exists, you can skip downloading. If there are
-        # errors near here delete the file to redownload
-        if [ ! -f "${asr_exp}/config.txt" ]; then
-            espnet_model_zoo_download --unpack true "${download_asr_model}" > "${asr_exp}/config.txt"
-        fi
-
-        # Get the path of each file
-        _asr_model_file=$(<"${asr_exp}/config.txt" sed -e "s/.*'asr_model_file': '\([^']*\)'.*$/\1/")
-        _asr_train_config=$(<"${asr_exp}/config.txt" sed -e "s/.*'asr_train_config': '\([^']*\)'.*$/\1/")
-
-        echo "${_asr_model_file}"
-        echo "${_asr_train_config}"
-
-        # Create symbolic links
-        ln -sf "${_asr_model_file}" "${asr_exp}"
-        ln -sf "${_asr_train_config}" "${asr_exp}"
-        training_asr_model=$(basename "${_asr_model_file}")
-
-        if [ "$(<${asr_exp}/config.txt grep -c lm_file)" -gt 0 ]; then
-            _lm_file=$(<"${asr_exp}/config.txt" sed -e "s/.*'lm_file': '\([^']*\)'.*$/\1/")
-            _lm_train_config=$(<"${asr_exp}/config.txt" sed -e "s/.*'lm_train_config': '\([^']*\)'.*$/\1/")
-
-            lm_exp="${expdir}/${download_asr_model}/lm"
-            mkdir -p "${lm_exp}"
-
-            ln -sf "${_lm_file}" "${lm_exp}"
-            ln -sf "${_lm_train_config}" "${lm_exp}"
-            training_lm=$(basename "${_lm_file}")
-        fi
+    # If the model already exists, you can skip downloading. If there are
+    # errors near here delete the file to redownload
+    if [ ! -f "${asr_exp}/config.txt" ]; then
+        espnet_model_zoo_download --unpack true "${download_asr_model}" > "${asr_exp}/config.txt"
     fi
 
-    if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
+    # Get the path of each file
+    _asr_model_file=$(<"${asr_exp}/config.txt" sed -e "s/.*'asr_model_file': '\([^']*\)'.*$/\1/")
+    _asr_train_config=$(<"${asr_exp}/config.txt" sed -e "s/.*'asr_train_config': '\([^']*\)'.*$/\1/")
+
+    echo "${_asr_model_file}"
+    echo "${_asr_train_config}"
+
+    # Create symbolic links
+    ln -sf "${_asr_model_file}" "${asr_exp}"
+    ln -sf "${_asr_train_config}" "${asr_exp}"
+    training_asr_model=$(basename "${_asr_model_file}")
+
+    if [ "$(<${asr_exp}/config.txt grep -c lm_file)" -gt 0 ]; then
+        _lm_file=$(<"${asr_exp}/config.txt" sed -e "s/.*'lm_file': '\([^']*\)'.*$/\1/")
+        _lm_train_config=$(<"${asr_exp}/config.txt" sed -e "s/.*'lm_train_config': '\([^']*\)'.*$/\1/")
+
+        lm_exp="${expdir}/${download_asr_model}/lm"
+        mkdir -p "${lm_exp}"
+
+        ln -sf "${_lm_file}" "${lm_exp}"
+        ln -sf "${_lm_train_config}" "${lm_exp}"
+        training_lm=$(basename "${_lm_file}")
+    fi
+
+    if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
         _train_dir="${data_feats}/${train_set}"
         _valid_dir="${data_feats}/${valid_set}"
-        log "Stage 6: TTS collect stats: train_set=${_train_dir}, valid_set=${_valid_dir}"
+        log "Stage 5: TTS collect stats: train_set=${_train_dir}, valid_set=${_valid_dir}"
 
         _opts=
         if [ -n "${train_config}" ]; then
@@ -718,10 +716,10 @@ if ! "${skip_train}"; then
             >"${tts_stats_dir}/valid/text_shape.${token_type}"
     fi
 
-    if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+    if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         _train_dir="${data_feats}/${train_set}"
         _valid_dir="${data_feats}/${valid_set}"
-        log "Stage 7: TTS Training: train_set=${_train_dir}, valid_set=${_valid_dir}"
+        log "Stage 6: TTS Training: train_set=${_train_dir}, valid_set=${_valid_dir}"
 
         _opts=
         if [ -n "${train_config}" ]; then
