@@ -327,7 +327,7 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         sids: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
         lambda_text2mel: float = 1.0,
-        lambda_asr: float = 1.0,
+        lambda_asr: float = 0.08,
         **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Caclualte outputs and return the loss tensor.
@@ -413,11 +413,13 @@ class ESPnetUTTSModel(ESPnetTTSModel):
             batch.update(speech=speech, speech_lengths=speech_lengths)
 
         text2mel_loss, stats, feats_gen = self.tts(**batch, utts_training=True)
+        text2mel_loss = lambda_text2mel * text2mel_loss
         stats.update(text2mel_loss=text2mel_loss.item())
 
         asr_loss, asr_stats, asr_weight = self.asr_forward(
             text, text_lengths, feats_gen, feats_lengths
         )
+        asr_loss = lambda_asr * asr_loss
         stats.update(asr_loss=asr_loss.item())
         stats.update(**asr_stats);
 
@@ -425,7 +427,7 @@ class ESPnetUTTSModel(ESPnetTTSModel):
         # computation graph.  one edge points directly to the tts model. another
         # edge points to the asr model graph, which isn't storing any
         # gradients. but the backpropagation still moves through it.
-        loss = lambda_text2mel * text2mel_loss + lambda_asr * asr_loss
+        loss = text2mel_loss + asr_loss
 
         stats.update(loss=loss.item())
 
