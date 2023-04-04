@@ -1015,7 +1015,7 @@ if ! "${skip_eval}"; then
             log "Decoding started... log: '${_logdir}/tts_inference.*.log'"
             # shellcheck disable=SC2046,SC2086
             ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/tts_inference.JOB.log \
-                ${python} -m espnet2.bin.tts_inference \
+                ${python} -m espnet2.bin.utts_inference \
                     --ngpu "${_ngpu}" \
                     --data_path_and_name_and_type "${_data}/text,text,text" \
                     --data_path_and_name_and_type ${_speech_data}/${_scp},speech,${_type} \
