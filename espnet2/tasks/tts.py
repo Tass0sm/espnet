@@ -40,6 +40,8 @@ from espnet2.utils.griffin_lim import Spectrogram2Waveform
 from espnet2.utils.nested_dict_action import NestedDictAction
 from espnet2.utils.types import int_or_none, str2bool, str_or_none
 
+from espnet2.utts.espnet_model import ESPnetUTTSModel
+
 feats_extractor_choices = ClassChoices(
     "feats_extract",
     classes=dict(

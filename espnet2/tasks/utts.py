@@ -22,6 +22,7 @@ from espnet2.tasks.tts import (
 )
 from espnet2.tasks.asr import ASRTask
 
+from espnet2.train.abs_espnet_model import AbsESPnetModel
 from espnet2.utts.espnet_model import ESPnetUTTSModel
 
 class UTTSTask(TTSTask):
@@ -233,7 +234,7 @@ class UTTSTask(TTSTask):
                 # NOTE(kamo): "cuda" for torch.load always indicates cuda:0
                 #   in PyTorch<=1.4
                 device = f"cuda:{torch.cuda.current_device()}"
-            utts_model.load_state_dict(torch.load(utts_model_file))
+            utts_model.load_state_dict(torch.load(model_file))
 
         model = TTSTask.build_model_from_utts_model(cls, utts_model, args)
         model.to(device)
