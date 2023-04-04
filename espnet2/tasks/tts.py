@@ -379,10 +379,10 @@ class TTSTask(AbsTask):
         normalize = utts_model.normalize
         tts = utts_model.tts
 
-        pitch_extract = None
-        energy_extract = None
-        pitch_normalize = None
-        energy_normalize = None
+        pitch_extract = utts_model.pitch_extract
+        energy_extract = utts_model.energy_extract
+        pitch_normalize = utts_model.pitch_normalize
+        energy_normalize = utts_model.energy_normalize
 
         # 5. Build model
         model = ESPnetTTSModel(

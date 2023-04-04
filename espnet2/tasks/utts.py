@@ -83,7 +83,10 @@ class UTTSTask(TTSTask):
 
         # ASR SECTION
         # 1.
-        device = "cuda" if args.ngpu > 0 else "cpu"
+        if getattr(args, "for_inference", None) is None:
+            args.for_inference = False
+
+        device = "cuda" if (args.ngpu > 0 and not args.for_inference) else "cpu"
         asr_model, asr_train_args = ASRTask.build_model_from_file(
             args.asr_model_config, args.asr_model_file, device
         )
@@ -186,7 +189,7 @@ class UTTSTask(TTSTask):
             energy_normalize=energy_normalize,
             tts=tts,
             # asr model componentsh
-            asr_model=asr_model,
+            # asr_model=asr_model,
             **args.model_conf,
         )
         assert check_return_type(model)
@@ -223,6 +226,8 @@ class UTTSTask(TTSTask):
         with config_file.open("r", encoding="utf-8") as f:
             args = yaml.safe_load(f)
         args = argparse.Namespace(**args)
+        args.for_inference = True
+
         utts_model = cls.build_model(args)
         if not isinstance(utts_model, AbsESPnetModel):
             raise RuntimeError(
@@ -236,7 +241,7 @@ class UTTSTask(TTSTask):
                 device = f"cuda:{torch.cuda.current_device()}"
             utts_model.load_state_dict(torch.load(model_file))
 
-        model = TTSTask.build_model_from_utts_model(cls, utts_model, args)
+        model = TTSTask.build_model_from_utts_model(utts_model, args)
         model.to(device)
 
         return model, args
