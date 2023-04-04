@@ -63,7 +63,7 @@ class UTTSTask(TTSTask):
             class_choices.add_arguments(group)
 
     @classmethod
-    def build_model(cls, args: argparse.Namespace) -> ESPnetTTSModel:
+    def build_model(cls, args: argparse.Namespace) -> ESPnetUTTSModel:
         assert check_argument_types()
         if isinstance(args.token_list, str):
             with open(args.token_list, encoding="utf-8") as f:
@@ -190,3 +190,52 @@ class UTTSTask(TTSTask):
         )
         assert check_return_type(model)
         return model
+
+    # ~~~~~~~~~ The methods below are mainly used for inference ~~~~~~~~~
+    @classmethod
+    def build_model_from_file(
+        cls,
+        config_file: Union[Path, str] = None,
+        model_file: Union[Path, str] = None,
+        device: str = "cpu",
+    ) -> Tuple[AbsESPnetModel, argparse.Namespace]:
+        """Build model from the files.
+
+        This method is used for inference or fine-tuning.
+
+        Args:
+            config_file: The yaml file saved when training.
+            model_file: The model file saved when training.
+            device: Device type, "cpu", "cuda", or "cuda:N".
+
+        """
+        assert check_argument_types()
+        if config_file is None:
+            assert model_file is not None, (
+                "The argument 'model_file' must be provided "
+                "if the argument 'config_file' is not specified."
+            )
+            config_file = Path(model_file).parent / "config.yaml"
+        else:
+            config_file = Path(config_file)
+
+        with config_file.open("r", encoding="utf-8") as f:
+            args = yaml.safe_load(f)
+        args = argparse.Namespace(**args)
+        utts_model = cls.build_model(args)
+        if not isinstance(utts_model, AbsESPnetModel):
+            raise RuntimeError(
+                f"model must inherit {AbsESPnetModel.__name__}, but got {type(utts_model)}"
+            )
+
+        if model_file is not None:
+            if device == "cuda":
+                # NOTE(kamo): "cuda" for torch.load always indicates cuda:0
+                #   in PyTorch<=1.4
+                device = f"cuda:{torch.cuda.current_device()}"
+            utts_model.load_state_dict(torch.load(utts_model_file))
+
+        model = TTSTask.build_model_from_utts_model(cls, utts_model, args)
+        model.to(device)
+
+        return model, args

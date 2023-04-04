@@ -371,6 +371,34 @@ class TTSTask(AbsTask):
         return model
 
     @classmethod
+    def build_model_from_utts_model(cls, utts_model: ESPnetUTTSModel, args: argparse.Namespace) -> ESPnetTTSModel:
+        feats_extract = utts_model.feats_extract
+        odim = feats_extract.output_size()
+        normalize = utts_model.normalize
+        tts = utts_model.tts
+
+        pitch_extract = None
+        energy_extract = None
+        pitch_normalize = None
+        energy_normalize = None
+
+        # 5. Build model
+        model = ESPnetTTSModel(
+            feats_extract=feats_extract,
+            pitch_extract=pitch_extract,
+            energy_extract=energy_extract,
+            normalize=normalize,
+            pitch_normalize=pitch_normalize,
+            energy_normalize=energy_normalize,
+            tts=tts,
+            **args.model_conf,
+        )
+        assert check_return_type(model)
+        return model
+
+
+
+    @classmethod
     def build_vocoder_from_file(
         cls,
         vocoder_config_file: Union[Path, str] = None,
