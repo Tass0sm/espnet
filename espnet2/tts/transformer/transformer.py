@@ -692,6 +692,8 @@ class Transformer(AbsTTS):
 
         if self.loss_type == "L1":
             loss = l1_loss + bce_loss
+        elif self.loss_type == "L1+ASR":
+            loss = l1_loss + bce_loss + asr_loss
         elif self.loss_type == "L2":
             loss = l2_loss + bce_loss
         elif self.loss_type == "L1+L2":
