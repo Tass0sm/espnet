@@ -189,7 +189,7 @@ class UTTSTask(TTSTask):
             energy_normalize=energy_normalize,
             tts=tts,
             # asr model componentsh
-            # asr_model=asr_model,
+            asr_model=asr_model,
             **args.model_conf,
         )
         assert check_return_type(model)
