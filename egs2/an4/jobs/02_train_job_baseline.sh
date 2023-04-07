@@ -18,7 +18,7 @@ source path.sh
 
 set -x
 
-EXP=$(realpath ../tts-project-exp1)
+EXP=$(realpath ../utts-project-exp1)
 CONF=$(realpath ../utts1/conf/train_transformer.yaml)
 
 cd ../utts1
