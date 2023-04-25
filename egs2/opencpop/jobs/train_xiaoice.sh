@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=opencpop_download_and_prep
+#SBATCH --job-name=opencpop_train_xiaoice
 #SBATCH --time=8:00:00
 #SBATCH --nodes=1 --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
+#SBATCH --gpus-per-node=1
 #SBATCH --account=pas2400
 #SBATCH --mail-type=ALL
 
@@ -13,10 +14,12 @@ module load nccl/2.11.4
 module load python
 source activate espnet-env
 
-source path.sh
-
 set -x
 
 cd ../svs1
+source path.sh
 
-./run.sh --ngpu 0 --nj 16 --stage 0 --stop-stage 4
+CONF=$(realpath ../svs1/conf/tuning/train_xiaoice.yaml)
+
+./run.sh --ngpu 1 --nj 16 --stage 5 --stop-stage 7 \
+         --train_config $CONF
