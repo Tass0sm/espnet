@@ -14,8 +14,111 @@ from typeguard import check_argument_types
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.svs.abs_svs import AbsSVS
 
-from espnet.nets.pytorch_backend.tacotron2.decoder import Decoder
-from espnet.nets.pytorch_backend.tacotron2.encoder import Encoder
+from espnet.nets.pytorch_backend.rnn.attentions import AttForward, AttForwardTA, AttLoc
+from espnet.nets.pytorch_backend.tacotron2.encoder import encoder_init, Encoder
+# from espnet.nets.pytorch_backend.tacotron2.decoder import Decoder
+
+class DurationEncoder(torch.nn.Module):
+    """Duration encoder module of Singing-Tacotron.
+
+    TODO: Description
+
+    .. _`Singing-Tacotron: Global duration control attention and dynamic filter
+       for End-to-end singing voice synthesis`: https://arxiv.org/abs/2202.07907
+
+    """
+
+    def __init__(
+            self,
+            idim,
+            embed_dim=512,
+            econv_layers=2,
+            econv_chans=32,
+            econv_filts=5,
+            use_batch_norm=True,
+            dropout_rate=0.5,
+            padding_idx=0,
+    ):
+        """Initialize DurationEncoder module.
+
+        Args:
+
+        """
+        super(DurationEncoder, self).__init__()
+
+        self.embed = torch.nn.Embedding(idim, embed_dim, padding_idx=padding_idx)
+        self.fc1 = torch.nn.Linear(embed_dim, econv_chans)
+
+        if econv_layers > 0:
+            self.convs = torch.nn.ModuleList()
+            for layer in range(econv_layers):
+                ichans = econv_chans
+                if use_batch_norm:
+                    self.convs += [
+                        torch.nn.Sequential(
+                            torch.nn.Conv1d(
+                                ichans,
+                                econv_chans,
+                                econv_filts,
+                                stride=1,
+                                padding=(econv_filts - 1) // 2,
+                                bias=False,
+                            ),
+                            torch.nn.BatchNorm1d(econv_chans),
+                            torch.nn.ReLU(),
+                            torch.nn.Dropout(dropout_rate),
+                        )
+                    ]
+                else:
+                    self.convs += [
+                        torch.nn.Sequential(
+                            torch.nn.Conv1d(
+                                ichans,
+                                econv_chans,
+                                econv_filts,
+                                stride=1,
+                                padding=(econv_filts - 1) // 2,
+                                bias=False,
+                            ),
+                            torch.nn.ReLU(),
+                            torch.nn.Dropout(dropout_rate),
+                        )
+                    ]
+        else:
+            self.convs = None
+
+        iunits = econv_chans if econv_layers != 0 else embed_dim
+        self.fc2 = torch.nn.Linear(iunits, 1)
+        self.tanh = torch.nn.Tanh()
+
+        # initialize
+        self.apply(encoder_init)
+
+    def forward(self, ds):
+        """Calculate forward propagation.
+
+        Args:
+            TODO
+
+        Returns:
+            TODO
+
+        """
+
+
+        ds = self.embed(ds)
+        ds = self.fc1(ds).transpose(1, 2)
+
+        if self.convs is not None:
+            for i in range(len(self.convs)):
+                ds = self.convs[i](ds)
+
+        ds = ds.transpose(1, 2)
+        ds = self.fc2(ds)
+        q = (self.tanh(ds) + 1) / 2
+        return q.squeeze()
+
+
 
 class SingingTacotron(AbsSVS):
     """
@@ -46,7 +149,8 @@ class SingingTacotron(AbsSVS):
             econv_filts: int = 5,
             use_residual: bool = False,
             dropout_rate: float = 0.1,
-
+            ## duration encoder:
+            ## decoder:
             dlayers: int = 6,
             dunits: int = 1536,
             postnet_layers: int = 5,
@@ -75,7 +179,7 @@ class SingingTacotron(AbsSVS):
             transformer_dec_positional_dropout_rate: float = 0.1,
             transformer_dec_attn_dropout_rate: float = 0.1,
             # only for conformer
-        conformer_rel_pos_type: str = "legacy",
+            conformer_rel_pos_type: str = "legacy",
             conformer_pos_enc_layer_type: str = "rel_pos",
             conformer_self_attn_layer_type: str = "rel_selfattn",
             conformer_activation_type: str = "swish",
@@ -85,12 +189,12 @@ class SingingTacotron(AbsSVS):
             conformer_enc_kernel_size: int = 7,
             conformer_dec_kernel_size: int = 31,
             # extra embedding related
-        spks: Optional[int] = None,
+            spks: Optional[int] = None,
             langs: Optional[int] = None,
             spk_embed_dim: Optional[int] = None,
             spk_embed_integration_type: str = "add",
             # training related
-        init_type: str = "xavier_uniform",
+            init_type: str = "xavier_uniform",
             init_enc_alpha: float = 1.0,
             init_dec_alpha: float = 1.0,
             use_masking: bool = False,
@@ -181,6 +285,7 @@ class SingingTacotron(AbsSVS):
         padding_idx = 0
         self.padding_idx = padding_idx
 
+        # for the content encoder input
         # embeddings
         self.label_embedding = torch.nn.Embedding(
             num_embeddings=idim, embedding_dim=eunits, padding_idx=self.padding_idx
@@ -198,7 +303,6 @@ class SingingTacotron(AbsSVS):
         self.content_encoder = Encoder(
             idim=h_dim,
             input_layer="linear",
-            embed_dim=embed_dim,
             elayers=elayers,
             eunits=eunits,
             econv_layers=econv_layers,
@@ -208,6 +312,11 @@ class SingingTacotron(AbsSVS):
             use_residual=use_residual,
             dropout_rate=dropout_rate,
             padding_idx=padding_idx,
+        )
+
+        # for the duration encoder
+        self.duration_encoder = DurationEncoder(
+            idim=tempo_dim
         )
 
     def forward(
@@ -313,6 +422,16 @@ class SingingTacotron(AbsSVS):
 
         hs, hlens = self.content_encoder(hs, ilens)
 
+        # Add eos at the last of sequence
+        tempo = F.pad(tempo, [0, 1], "constant", self.padding_idx)
+        for i, l in enumerate(tempo_lengths):
+            tempo[i, l] = self.eos
+
+        ilens = np.minimum(label_lengths, midi_lengths) + 1
+
+        q = self.duration_encoder(tempo)
+
+        # decoder
 
         breakpoint()
 
